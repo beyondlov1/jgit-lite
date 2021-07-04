@@ -1,5 +1,6 @@
-package com.beyond.delta.entity;
+package com.beyond.jgit.pack;
 
+import com.beyond.delta.entity.Delta;
 import lombok.Data;
 
 import java.util.List;

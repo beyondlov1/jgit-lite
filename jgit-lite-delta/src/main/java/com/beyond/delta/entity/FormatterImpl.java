@@ -60,19 +60,19 @@ public class FormatterImpl implements Formatter {
     }
 
     private static int byteSize(int value) {
-        if (value < Integer.valueOf("1111111", 2)) {
+        if (value <= Integer.valueOf("1111111", 2)) {
             return 1;
         }
-        if (value < Integer.valueOf("11111111111111", 2)) {
+        if (value <= Integer.valueOf("11111111111111", 2)) {
             return 2;
         }
-        if (value < Integer.valueOf("111111111111111111111", 2)) {
+        if (value <= Integer.valueOf("111111111111111111111", 2)) {
             return 3;
         }
-        if (value < Long.valueOf("1111111111111111111111111111", 2)) {
+        if (value <= Long.valueOf("1111111111111111111111111111", 2)) {
             return 4;
         }
-        if (value < Long.valueOf("11111111111111111111111111111111111", 2)) {
+        if (value <= Long.valueOf("11111111111111111111111111111111111", 2)) {
             return 5;
         }
         throw new RuntimeException("数值过大，暂不支持");
@@ -126,29 +126,15 @@ public class FormatterImpl implements Formatter {
 
     private static void addValue(int n, byte[] result, int offset) {
         int byteSize = byteSize(n);
-        String tmp = Integer.toString(n, 2);
-
-        for (int i = offset + byteSize - 1; i >= 0; i--) {
-            if (tmp.length() <= 0) {
-                break;
+        int tmp = n;
+        for (int i = 0; i < byteSize; i++) {
+            if (i == byteSize - 1){
+                result[offset+i] = (byte) (tmp & 0x7f) ;
+            }else {
+                result[offset+i] = (byte) (tmp & 0x7f | 0x80);
             }
-            if (tmp.length() < 7) {
-                if (i == offset + byteSize - 1) {
-                    result[i] = Byte.valueOf(tmp, 2);
-                } else {
-                    result[i] = (byte) -Byte.valueOf(tmp, 2);
-                }
-                break;
-            }
-
-            if (i == offset + byteSize - 1) {
-                result[i] = Byte.valueOf(StringUtils.substring(tmp, tmp.length() - 7, tmp.length()), 2);
-            } else {
-                result[i] = (byte) -Byte.valueOf(StringUtils.substring(tmp, tmp.length() - 7, tmp.length()), 2);
-            }
-            tmp = StringUtils.substring(tmp, 0, tmp.length() - 7);
+            tmp = tmp >> 7;
         }
-
     }
 
     public void addInt(int n, byte[] result, int offset) {
@@ -242,11 +228,7 @@ public class FormatterImpl implements Formatter {
 
         int res = 0;
         for (int i = 0; i < len; i++) {
-            if (bytes[offset + i] < 0){
-                res += (-bytes[offset + i] & 0xff) << ((len - 1 - i) * 7);
-            }else{
-                res += (bytes[offset + i] & 0xff) << ((len - 1 - i) * 7);
-            }
+            res = ((bytes[offset + i] & 0x7f) << (i * 7)) + res  ;
         }
         return res;
     }
@@ -260,6 +242,37 @@ public class FormatterImpl implements Formatter {
 
         int i1 = readValue(bytes, 0);
         System.out.println(i1);
+
+        // 11111111 -> 11111110 -> 00000111
+        byte i2 = ((~0x00b) << 1) >> 5;
+        System.out.println(i2);
+        System.out.println((byte)((byte)((~0x00) << 1)));
+        Byte aByte = Byte.valueOf("01111111", 2);
+        System.out.println(aByte);
+
+
+        System.out.println(Integer.toBinaryString((byte)((byte)(~0x00 & 0xff) << 1) >> 5));
+        // 01111111  11111110 00000111
+        System.out.println((0x7f & 0xff));
+        System.out.println(Math.pow(2,8));
+        System.out.println(((0x7f & 0xff) << 1) >> 5);
+
+
+        byte[] bytes1 = new byte[byteSize(956564654)];
+        System.out.println(byteSize(956564654));
+        addValue(956564654, bytes1, 0);
+        System.out.println(Arrays.toString(bytes1));
+        String s = Integer.toBinaryString(956564654);
+        System.out.println(s);
+        System.out.println( (byte)(Byte.valueOf(StringUtils.substring(s, 30-7, 30),2) |0x80));
+        System.out.println((byte)( Byte.valueOf(StringUtils.substring(s, 30-7*2, 30-7),2)|0x80));
+        System.out.println( (byte)(Byte.valueOf(StringUtils.substring(s, 30-7*3, 30-7*2),2)|0x80));
+        System.out.println( (byte)( Byte.valueOf(StringUtils.substring(s, 30-7*4, 30-7*3),2)|0x80));
+        System.out.println( (byte)(Byte.valueOf(StringUtils.substring(s, 0, 30-7*4),2)));
+
+        int i3 = readValue(bytes1, 0);
+        System.out.println(i3);
+
     }
 
 

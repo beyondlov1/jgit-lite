@@ -1,4 +1,4 @@
-package com.beyond.delta.entity;
+package com.beyond.jgit.pack;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
