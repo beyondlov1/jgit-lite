@@ -1,0 +1,7 @@
+/jgit-lite-main/src/test
+/jgit-lite-delta/src/test
+/target/
+/.idea/
+/jgit-lite-main/target/
+/jgit-lite-delta/target/
+/jgit-lite-delta/src/test/
