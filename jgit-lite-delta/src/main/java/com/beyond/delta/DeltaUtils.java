@@ -17,6 +17,8 @@ public class DeltaUtils {
 
     private static final int NHASH = 3;
 
+    private static final Formatter formatter = Formatter.newInstance();
+
     public static List<Delta> makeDeltas(byte[] target, byte[] base) {
         MultiValuedMap<String, OriginChunk> originChunkMap = new ArrayListValuedHashMap<>();
         byte[] tmp = new byte[NHASH];
@@ -237,6 +239,22 @@ public class DeltaUtils {
         return sb.toString();
     }
 
+    public static byte[] format(List<Delta> deltas) {
+        return formatter.format(deltas);
+    }
+
+    public static void format(List<Delta> deltas, byte[] result, int offset) {
+        formatter.format(deltas, result, offset);
+    }
+
+    public static List<Delta> parse(byte[] deltasBytes) {
+        return formatter.parse(deltasBytes);
+    }
+
+    public static List<Delta> parse(byte[] deltasBytes, int offset, int len) {
+        return formatter.parse(deltasBytes, offset, len);
+    }
+
     public static void main(String[] args) {
         //        byte[] target = "abcdefghigklmnopqrstuvwxyz789defghigklmiidfad".getBytes(StandardCharsets.UTF_8);
 //        byte[] base = "e34abcdefghigkl123mnopqrstuvwxyz".getBytes(StandardCharsets.UTF_8);
@@ -357,11 +375,9 @@ public class DeltaUtils {
                 "\n").getBytes(StandardCharsets.UTF_8);
 
         List<Delta> deltas = makeDeltas(target, base);
-        Formatter formatter = Formatter.newInstance();
-        byte[] deltasFormatted = formatter.format(deltas);
-        List<Delta> parsedDeltas = formatter.parse(deltasFormatted);
+        byte[] deltasFormatted = format(deltas);
+        List<Delta> parsedDeltas = parse(deltasFormatted);
         byte[] targetApplied = applyDeltas(deltas, base);
-
 
         System.out.println(pretty(parsedDeltas,base).equals(pretty(deltas,base)));
         System.out.println(Arrays.equals(targetApplied, target));
