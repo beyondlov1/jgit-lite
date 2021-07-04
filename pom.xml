@@ -11,6 +11,7 @@
     <modules>
         <module>jgit-lite-main</module>
         <module>jgit-lite-delta</module>
+        <module>jgit-lite-utils</module>
     </modules>
 
     <build>

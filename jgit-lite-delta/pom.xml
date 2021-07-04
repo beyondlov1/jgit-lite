@@ -20,6 +20,11 @@
             <version>30.0-jre</version>
         </dependency>
 
+        <dependency>
+            <groupId>org.beyond</groupId>
+            <artifactId>jgit-lite-utils</artifactId>
+            <version>1.0</version>
+        </dependency>
     </dependencies>
 
 

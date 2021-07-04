@@ -2,12 +2,17 @@ package com.beyond.delta;
 
 import com.beyond.delta.entity.*;
 import com.beyond.delta.entity.Formatter;
+import com.beyond.jgit.util.ZlibCompression;
 import com.google.common.hash.Hashing;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ComparatorUtils;
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 
+import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -255,7 +260,7 @@ public class DeltaUtils {
         return formatter.parse(deltasBytes, offset, len);
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
 //        byte[] target = "abcdefghigklmnopqrstuvwxyz789defghigklmiidfad".getBytes(StandardCharsets.UTF_8);
 //        byte[] base = "e34abcdefghigkl123mnopqrstuvwxyz".getBytes(StandardCharsets.UTF_8);
 //        byte[] target = "广域网（英语：Wide Area Network，缩写为 WAN），又dfasdfag打法称广域ssccdggeaswe网、外网、公网。是连接不同地区局域网或wosidfjao城域网计算机通信的远程网。通常跨接很大的物我们都是理范围，所覆盖的里，它能连接多个地区、城市和国家，或横跨几个洲并能提供远距离通信，形成国际性的远程网络。广域网并".getBytes(StandardCharsets.UTF_8);
@@ -387,5 +392,19 @@ public class DeltaUtils {
         System.out.println(base.length);
         System.out.println(target.length);
         System.out.println(deltasFormatted.length);
+
+
+        byte[] base1 = "ssscccd".getBytes();
+        byte[] target1 = ("ssscccdcgwrwte\n" +
+                "dfadfda\n" +
+                "cvdfgdsg").getBytes();
+
+        List<Delta> deltas1 = makeDeltas(target1, base1);
+        System.out.println(pretty(deltas1, base));
+
+        System.out.println(base1.length);
+        System.out.println(target1.length);
+        System.out.println(format(deltas1).length);
+
     }
 }
