@@ -40,20 +40,20 @@ public class FormatterImpl implements Formatter {
     private int sizeOne(Delta delta) {
 
         if (delta instanceof CopyRangeDelta) {
-            // type+targetOffset+size+originOffset
-            int targetOffset = delta.getTargetRange().getStart();
+            // (type[3]+size[4])+targetOffset+originOffset
             int size = delta.getTargetRange().length();
+            int targetOffset = delta.getTargetRange().getStart();
             int originOffset = ((CopyRangeDelta) delta).getOriginRange().getStart();
 
-            return 1 + byteSize(targetOffset) + byteSize(size) + byteSize(originOffset);
+            return 1 + ((size >> 4) > 0 ? byteSize(size >> 4) : 0) + byteSize(targetOffset) + byteSize(originOffset);
         }
 
         if (delta instanceof InsertLiterDelta) {
-            // type+targetOffset+size+liter
-            int targetOffset = delta.getTargetRange().getStart();
+            // (type[3]+size[4])+targetOffset+liter
             int size = delta.getTargetRange().length();
+            int targetOffset = delta.getTargetRange().getStart();
             int literSize = delta.getTargetRange().length();
-            return 1 + byteSize(targetOffset) + byteSize(size) + literSize;
+            return 1 + ((size >> 4) > 0 ? byteSize(size >> 4) : 0) + byteSize(targetOffset) + literSize;
         }
 
         throw new RuntimeException("未知类型");
@@ -72,26 +72,19 @@ public class FormatterImpl implements Formatter {
         if (value <= Long.valueOf("1111111111111111111111111111", 2)) {
             return 4;
         }
-        if (value <= Long.valueOf("11111111111111111111111111111111111", 2)) {
-            return 5;
-        }
-        throw new RuntimeException("数值过大，暂不支持");
+        return 5;
     }
 
     public int formatOneTo(Delta delta, byte[] result, int offset) {
 
         if (delta instanceof CopyRangeDelta) {
-            // type+targetOffset+size+originOffset
-            result[offset] = 0;
-            offset = offset + 1;
+            // type+size+targetOffset+originOffset
+            int size = delta.getTargetRange().length();
+            offset = addTypeAndSize(0, size, result, offset);
 
             int targetOffset = delta.getTargetRange().getStart();
             addValue(targetOffset, result, offset);
             offset = offset + byteSize(targetOffset);
-
-            int size = delta.getTargetRange().length();
-            addValue(size, result, offset);
-            offset = offset + byteSize(size);
 
             int originOffset = ((CopyRangeDelta) delta).getOriginRange().getStart();
             addValue(originOffset, result, offset);
@@ -101,22 +94,17 @@ public class FormatterImpl implements Formatter {
         }
 
         if (delta instanceof InsertLiterDelta) {
-            // type+targetOffset+size+liter
-            int literSize = delta.getTargetRange().length();
-            result[offset] = 1;
-            offset = offset + 1;
+            // type+size+targetOffset+liter
+            int size = delta.getTargetRange().length();
+            offset = addTypeAndSize(1, size, result, offset);
 
             int targetOffset = delta.getTargetRange().getStart();
             addValue(targetOffset, result, offset);
             offset = offset + byteSize(targetOffset);
 
-            int size = delta.getTargetRange().length();
-            addValue(size, result, offset);
-            offset = offset + byteSize(size);
-
             byte[] literal = ((InsertLiterDelta) delta).getLiteral();
             System.arraycopy(literal, 0, result, offset, size);
-            offset = offset + literSize;
+            offset = offset + size;
 
             return offset;
         }
@@ -124,14 +112,27 @@ public class FormatterImpl implements Formatter {
         throw new RuntimeException("未知类型");
     }
 
+    private static int addTypeAndSize(int type, int size, byte[] result, int offset) {
+        byte firstByte = (byte) (size & 0xf | type << 4);
+        if (size > 0xf) {
+            result[offset] = (byte) (firstByte | 0x80);
+            addValue(size >> 4, result, offset + 1);
+            return offset + byteSize(size >> 4) + 1;
+        } else {
+            result[offset] = firstByte;
+            return offset + 1;
+        }
+    }
+
+
     private static void addValue(int n, byte[] result, int offset) {
         int byteSize = byteSize(n);
         int tmp = n;
         for (int i = 0; i < byteSize; i++) {
-            if (i == byteSize - 1){
-                result[offset+i] = (byte) (tmp & 0x7f) ;
-            }else {
-                result[offset+i] = (byte) (tmp & 0x7f | 0x80);
+            if (i == byteSize - 1) {
+                result[offset + i] = (byte) (tmp & 0x7f);
+            } else {
+                result[offset + i] = (byte) (tmp & 0x7f | 0x80);
             }
             tmp = tmp >> 7;
         }
@@ -160,20 +161,25 @@ public class FormatterImpl implements Formatter {
 
         while (offset < len) {
             int nextOffset = offset;
-            byte type = readNextByte(deltasBytes, nextOffset);
+            byte typeAndSizeByte = readNextByte(deltasBytes, nextOffset);
             nextOffset += 1;
+            byte type = (byte) ((typeAndSizeByte & 0x7f) >> 4);
+            int msb = (typeAndSizeByte & 0x80) >> 7;
+            int size = typeAndSizeByte & 0x0f;
+            if (msb == 1) {
+                int sizePartHigh = readValue(deltasBytes, nextOffset);
+                nextOffset += byteSize(sizePartHigh);
+                size = size + (sizePartHigh << 4);
+            }
 
             int targetOffset = readValue(deltasBytes, nextOffset);
             nextOffset += byteSize(targetOffset);
-
-            int size = readValue(deltasBytes, nextOffset);
-            nextOffset += byteSize(size);
 
             if (type == 0) {
                 int originOffset = readValue(deltasBytes, nextOffset);
                 nextOffset += byteSize(originOffset);
 
-                CopyRangeDelta copyRangeDelta = new CopyRangeDelta(new Range(originOffset, originOffset + size), new Range(targetOffset, targetOffset+size));
+                CopyRangeDelta copyRangeDelta = new CopyRangeDelta(new Range(originOffset, originOffset + size), new Range(targetOffset, targetOffset + size));
                 result.add(copyRangeDelta);
             }
 
@@ -181,8 +187,12 @@ public class FormatterImpl implements Formatter {
                 byte[] literal = new byte[size];
                 System.arraycopy(deltasBytes, nextOffset, literal, 0, size);
                 nextOffset += size;
-                InsertLiterDelta insertLiterDelta = new InsertLiterDelta(new Range(targetOffset, targetOffset+ size), literal);
+                InsertLiterDelta insertLiterDelta = new InsertLiterDelta(new Range(targetOffset, targetOffset + size), literal);
                 result.add(insertLiterDelta);
+            }
+
+            if (type != 0 && type != 1) {
+                throw new RuntimeException("type error");
             }
 
             offset = nextOffset;
@@ -228,7 +238,7 @@ public class FormatterImpl implements Formatter {
 
         int res = 0;
         for (int i = 0; i < len; i++) {
-            res = ((bytes[offset + i] & 0x7f) << (i * 7)) + res  ;
+            res = ((bytes[offset + i] & 0x7f) << (i * 7)) + res;
         }
         return res;
     }
@@ -246,15 +256,15 @@ public class FormatterImpl implements Formatter {
         // 11111111 -> 11111110 -> 00000111
         byte i2 = ((~0x00b) << 1) >> 5;
         System.out.println(i2);
-        System.out.println((byte)((byte)((~0x00) << 1)));
+        System.out.println((byte) ((byte) ((~0x00) << 1)));
         Byte aByte = Byte.valueOf("01111111", 2);
         System.out.println(aByte);
 
 
-        System.out.println(Integer.toBinaryString((byte)((byte)(~0x00 & 0xff) << 1) >> 5));
+        System.out.println(Integer.toBinaryString((byte) ((byte) (~0x00 & 0xff) << 1) >> 5));
         // 01111111  11111110 00000111
         System.out.println((0x7f & 0xff));
-        System.out.println(Math.pow(2,8));
+        System.out.println(Math.pow(2, 8));
         System.out.println(((0x7f & 0xff) << 1) >> 5);
 
 
@@ -264,14 +274,38 @@ public class FormatterImpl implements Formatter {
         System.out.println(Arrays.toString(bytes1));
         String s = Integer.toBinaryString(956564654);
         System.out.println(s);
-        System.out.println( (byte)(Byte.valueOf(StringUtils.substring(s, 30-7, 30),2) |0x80));
-        System.out.println((byte)( Byte.valueOf(StringUtils.substring(s, 30-7*2, 30-7),2)|0x80));
-        System.out.println( (byte)(Byte.valueOf(StringUtils.substring(s, 30-7*3, 30-7*2),2)|0x80));
-        System.out.println( (byte)( Byte.valueOf(StringUtils.substring(s, 30-7*4, 30-7*3),2)|0x80));
-        System.out.println( (byte)(Byte.valueOf(StringUtils.substring(s, 0, 30-7*4),2)));
+        System.out.println((byte) (Byte.valueOf(StringUtils.substring(s, 30 - 7, 30), 2) | 0x80));
+        System.out.println((byte) (Byte.valueOf(StringUtils.substring(s, 30 - 7 * 2, 30 - 7), 2) | 0x80));
+        System.out.println((byte) (Byte.valueOf(StringUtils.substring(s, 30 - 7 * 3, 30 - 7 * 2), 2) | 0x80));
+        System.out.println((byte) (Byte.valueOf(StringUtils.substring(s, 30 - 7 * 4, 30 - 7 * 3), 2) | 0x80));
+        System.out.println((byte) (Byte.valueOf(StringUtils.substring(s, 0, 30 - 7 * 4), 2)));
 
         int i3 = readValue(bytes1, 0);
         System.out.println(i3);
+
+
+        byte[] bytes2 = new byte[byteSize(56498 >> 4) + 1];
+        addTypeAndSize(0, 56498, bytes2, 0);
+        System.out.println(Arrays.toString(bytes2));
+
+        for (byte b : bytes2) {
+            System.out.println(Integer.toBinaryString(b));
+        }
+
+        int nextOffset = 0;
+        byte typeAndSizeByte = readNextByte(bytes2, nextOffset);
+        nextOffset += 1;
+        byte type = (byte) ((typeAndSizeByte & 0x7f) >> 4);
+        int msb = (typeAndSizeByte & 0x80) >> 7;
+        int size = typeAndSizeByte & 0x0f;
+        if (msb == 1) {
+            int sizePartHigh = readValue(bytes2, nextOffset);
+            size = size + sizePartHigh << 4;
+            nextOffset += byteSize(sizePartHigh);
+        }
+
+        System.out.println(type);
+        System.out.println(size);
 
     }
 

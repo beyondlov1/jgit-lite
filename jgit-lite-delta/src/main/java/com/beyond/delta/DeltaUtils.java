@@ -256,7 +256,7 @@ public class DeltaUtils {
     }
 
     public static void main(String[] args) {
-        //        byte[] target = "abcdefghigklmnopqrstuvwxyz789defghigklmiidfad".getBytes(StandardCharsets.UTF_8);
+//        byte[] target = "abcdefghigklmnopqrstuvwxyz789defghigklmiidfad".getBytes(StandardCharsets.UTF_8);
 //        byte[] base = "e34abcdefghigkl123mnopqrstuvwxyz".getBytes(StandardCharsets.UTF_8);
 //        byte[] target = "广域网（英语：Wide Area Network，缩写为 WAN），又dfasdfag打法称广域ssccdggeaswe网、外网、公网。是连接不同地区局域网或wosidfjao城域网计算机通信的远程网。通常跨接很大的物我们都是理范围，所覆盖的里，它能连接多个地区、城市和国家，或横跨几个洲并能提供远距离通信，形成国际性的远程网络。广域网并".getBytes(StandardCharsets.UTF_8);
 //        byte[] base = "广域网（英语：Wide Area Network，缩写为 WAN），又称广域网、外网、公网。是连接不同地区局域网或城域网计算机通信的远程网。通常跨接很大的物理范围，所覆盖的范围从几十公里到几千公里，它能连接多个地区、城市和国家，或横跨几个洲并能提供远距离通信，形成国际性的远程网络。广域网并".getBytes(StandardCharsets.UTF_8);
@@ -375,11 +375,17 @@ public class DeltaUtils {
                 "\n").getBytes(StandardCharsets.UTF_8);
 
         List<Delta> deltas = makeDeltas(target, base);
+        System.out.println(pretty(deltas, base));
         byte[] deltasFormatted = format(deltas);
+        System.out.println(Arrays.toString(deltasFormatted));
         List<Delta> parsedDeltas = parse(deltasFormatted);
         byte[] targetApplied = applyDeltas(deltas, base);
 
-        System.out.println(pretty(parsedDeltas,base).equals(pretty(deltas,base)));
+        System.out.println(pretty(parsedDeltas, base).equals(pretty(deltas, base)));
         System.out.println(Arrays.equals(targetApplied, target));
+
+        System.out.println(base.length);
+        System.out.println(target.length);
+        System.out.println(deltasFormatted.length);
     }
 }
