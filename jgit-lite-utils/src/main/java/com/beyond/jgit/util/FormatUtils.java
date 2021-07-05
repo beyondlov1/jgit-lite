@@ -2,6 +2,11 @@ package com.beyond.jgit.util;
 
 public class FormatUtils {
 
+    public static int writeBytesTo(byte[] target, byte[] result, int offset){
+        System.arraycopy(target, 0, result, offset, target.length);
+        return offset + target.length;
+    }
+
     public static int dynamicAddInt(int n, byte[] result, int offset) {
         int byteSize = FormatUtils.dynamicByteSize(n);
         int tmp = n;
@@ -30,6 +35,10 @@ public class FormatUtils {
             return 4;
         }
         return 5;
+    }
+
+    public static int dynamicByteSizeOfTypeAndSize(int typeBitLength, int size){
+        return 1 + dynamicByteSize(size >> (7-typeBitLength));
     }
 
     public static int dynamicAddTypeAndSize(int type, int typeBitLength, int size, byte[] result, int offset) {
@@ -95,4 +104,9 @@ public class FormatUtils {
         return readNextDynamicTypeAndSize(1, bytes, offset, result);
     }
 
+    public static byte[] readNextBytes(byte[] bytes, int offset, int len) {
+        byte[] result = new byte[len];
+        System.arraycopy(bytes, offset, result, 0, len);
+        return result;
+    }
 }

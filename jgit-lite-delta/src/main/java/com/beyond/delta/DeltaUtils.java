@@ -1,20 +1,27 @@
 package com.beyond.delta;
 
-import com.beyond.delta.entity.*;
+import com.beyond.delta.entity.CopyRangeDelta;
+import com.beyond.delta.entity.Delta;
 import com.beyond.delta.entity.Formatter;
-import com.beyond.jgit.util.ZlibCompression;
+import com.beyond.delta.entity.InsertLiterDelta;
+import com.beyond.delta.entity.OriginChunk;
+import com.beyond.delta.entity.Range;
+import com.beyond.delta.entity.Slice;
 import com.google.common.hash.Hashing;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ComparatorUtils;
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @SuppressWarnings("UnstableApiUsage")
@@ -244,12 +251,16 @@ public class DeltaUtils {
         return sb.toString();
     }
 
+    public static int deltaByteSize(List<Delta> deltas) {
+        return formatter.size(deltas);
+    }
+
     public static byte[] format(List<Delta> deltas) {
         return formatter.format(deltas);
     }
 
-    public static void format(List<Delta> deltas, byte[] result, int offset) {
-        formatter.format(deltas, result, offset);
+    public static int format(List<Delta> deltas, byte[] result, int offset) {
+        return formatter.format(deltas, result, offset);
     }
 
     public static List<Delta> parse(byte[] deltasBytes) {

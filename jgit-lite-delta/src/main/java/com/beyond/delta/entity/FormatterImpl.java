@@ -17,12 +17,18 @@ public class FormatterImpl implements Formatter {
 
 
     @Override
-    public byte[] format(List<Delta> deltas) {
-
+    public int size(List<Delta> deltas) {
         int size = 0;
         for (Delta delta : deltas) {
             size += sizeOne(delta);
         }
+        return size;
+    }
+
+    @Override
+    public byte[] format(List<Delta> deltas) {
+
+        int size = size(deltas);
 
         byte[] result = new byte[size];
         format(deltas, result, 0);
@@ -31,10 +37,11 @@ public class FormatterImpl implements Formatter {
     }
 
     @Override
-    public void format(List<Delta> deltas, byte[] result, int offset) {
+    public int format(List<Delta> deltas, byte[] result, int offset) {
         for (Delta delta : deltas) {
             offset = formatOneTo(delta, result, offset);
         }
+        return offset;
     }
 
     private int sizeOne(Delta delta) {

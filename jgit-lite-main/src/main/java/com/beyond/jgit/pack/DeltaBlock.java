@@ -7,6 +7,7 @@ import java.util.List;
 
 @Data
 public abstract class DeltaBlock {
-    private int offset;
+    private int start;
+    private int end;
     private List<Delta> deltas;
 }

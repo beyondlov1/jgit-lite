@@ -12,8 +12,9 @@ public interface Formatter {
         return new FormatterImpl();
     }
 
+    int size(List<Delta> deltas);
     byte[] format(List<Delta> deltas);
-    void format(List<Delta> deltas, byte[] result, int offset);
+    int format(List<Delta> deltas, byte[] result, int offset);
     List<Delta> parse(byte[] deltasBytes);
     List<Delta> parse(byte[] deltasBytes, int offset, int len);
 }
