@@ -25,6 +25,21 @@ public class PackFile {
             this.version = version;
             this.entries = entries;
         }
+
+        public Header(int version, int entries) {
+            this.version = int2Bytes(version);
+            this.entries = int2Bytes(entries);
+        }
+
+        public byte[] int2Bytes(int n){
+            byte[] result = new byte[4];
+            result[3] = (byte) (n & 0xff);
+            result[2] = (byte) (n >> 8 & 0xff);
+            result[1] = (byte) (n >> 16 & 0xff);
+            result[0] = (byte) (n >> 24 & 0xff);
+            return result;
+        }
+
     }
 
     @Data

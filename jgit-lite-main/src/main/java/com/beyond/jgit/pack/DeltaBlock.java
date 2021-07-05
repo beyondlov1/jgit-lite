@@ -10,4 +10,12 @@ public abstract class DeltaBlock {
     private int start;
     private int end;
     private List<Delta> deltas;
+
+    public DeltaBlock() {
+    }
+
+
+    public DeltaBlock(List<Delta> deltas) {
+        this.deltas = deltas;
+    }
 }

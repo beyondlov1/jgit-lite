@@ -8,13 +8,33 @@ import org.apache.commons.codec.digest.DigestUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.function.BinaryOperator;
 
 /**
  * todo: test
  */
 public class DeltaBlockFormatter {
+
+    public static int size(DeltaBlock block) {
+        List<Delta> deltas = block.getDeltas();
+        if (block instanceof RefDeltaBlock) {
+            return FormatUtils.dynamicByteSizeOfTypeAndSize(3, DeltaUtils.deltaByteSize(deltas)) + 20 + DeltaUtils.deltaByteSize(deltas);
+        }
+        if (block instanceof OfsDeltaBlock) {
+            return FormatUtils.dynamicByteSizeOfTypeAndSize(3, DeltaUtils.deltaByteSize(deltas)) + FormatUtils.dynamicByteSize(((OfsDeltaBlock) block).getOfs()) + DeltaUtils.deltaByteSize(deltas);
+        }
+        throw new RuntimeException("错误类型");
+    }
+
+    public static int size(PackFile packFile) {
+        List<DeltaBlock> blockList = packFile.getBlockList();
+        int blockListSize = blockList.stream().map(DeltaBlockFormatter::size).reduce(Integer::sum).orElse(0);
+        return 12 + blockListSize + 20;
+    }
 
     public static int format(PackFile packFile, byte[] result, int offset) throws IOException {
         PackFile.Header header = packFile.getHeader();
@@ -26,9 +46,9 @@ public class DeltaBlockFormatter {
         for (DeltaBlock deltaBlock : deltaBlocks) {
             offset = formatOne(deltaBlock, result, offset);
         }
-
         PackFile.Trailer trailer = new PackFile.Trailer(DigestUtils.sha1(new ByteArrayInputStream(result, 0, offset)));
         packFile.setTrailer(trailer);
+        FormatUtils.writeBytesTo(trailer.getChecksum(), result, offset);
         offset += 20;
         return offset;
     }
@@ -91,7 +111,7 @@ public class DeltaBlockFormatter {
         offset += 12;
 
         packFile.setBlockList(parse(bytes, offset, bytes.length - 20 - offset));
-        offset += bytes.length - 20;
+        offset += bytes.length - 20 - offset;
 
         byte[] checksum = new byte[20];
         System.arraycopy(bytes, offset, checksum, 0, 20);
@@ -103,7 +123,8 @@ public class DeltaBlockFormatter {
 
     public static List<DeltaBlock> parse(byte[] bytes, int offset, int len) {
         List<DeltaBlock> deltaBlocks = new ArrayList<>();
-        while (offset < bytes.length) {
+        int end = offset + len;
+        while (offset < end) {
             DeltaBlock block = parseNextBlock(bytes, offset);
             deltaBlocks.add(block);
             offset = block.getEnd();
@@ -145,5 +166,34 @@ public class DeltaBlockFormatter {
         }
 
         throw new RuntimeException("类型错误");
+    }
+
+    public static void main(String[] args) throws IOException {
+        byte[] target = "abcdefghigklmnopqrstuvwxyz789defghigklmiidfad".getBytes(StandardCharsets.UTF_8);
+        byte[] base = "e34abcdefghigkl123mnopqrstuvwxyz".getBytes(StandardCharsets.UTF_8);
+        PackFile packFile = new PackFile();
+        PackFile.Header header = new PackFile.Header(1, 1);
+        packFile.setHeader(header);
+
+        List<DeltaBlock> blockList = new ArrayList<>();
+        List<Delta> deltas = DeltaUtils.makeDeltas(target, base);
+        RefDeltaBlock deltaBlock = new RefDeltaBlock(deltas);
+        deltaBlock.setRef(ObjectUtils.sha1hash(new byte[]{1,2,3,5}));
+        blockList.add(deltaBlock);
+        packFile.setBlockList(blockList);
+
+        System.out.println(DeltaUtils.deltaByteSize(deltas));
+        byte[] c = new byte[90];
+        FormatUtils.dynamicAddTypeAndSize(7, 3, 25, c, 0);
+        System.out.println(Arrays.toString(c));
+        System.out.println(Arrays.toString(DeltaUtils.format(deltas)));
+        System.out.println(DeltaUtils.parse(new byte[]{12, 0, 3, 12, 12, 18, 69, 24, 121, 122, 55, 56, 57, 9, 29, 6, 71, 38, 109, 105, 105, 100, 102, 97, 100}));
+
+        byte[] a = new byte[size(packFile)];
+        format(packFile, a, 0);
+        System.out.println(Arrays.toString(a));
+        PackFile packFile1 = parse(a);
+        System.out.println(packFile);
+        System.out.println(packFile1);
     }
 }

@@ -121,8 +121,8 @@ public class FormatterImpl implements Formatter {
     @Override
     public List<Delta> parse(byte[] deltasBytes, int offset, int len) {
         List<Delta> result = new ArrayList<>();
-
-        while (offset < len) {
+        int end = offset + len;
+        while (offset < end) {
             int nextOffset = offset;
 
             int[] typeAndSizeSplit = new int[3];
