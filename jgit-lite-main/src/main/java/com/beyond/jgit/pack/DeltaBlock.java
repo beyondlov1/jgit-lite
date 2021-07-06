@@ -9,13 +9,15 @@ import java.util.List;
 public abstract class DeltaBlock {
     private int start;
     private int end;
+    private String objectId;
     private List<Delta> deltas;
 
     public DeltaBlock() {
     }
 
 
-    public DeltaBlock(List<Delta> deltas) {
+    public DeltaBlock(String objectId, List<Delta> deltas) {
+        this.objectId = objectId;
         this.deltas = deltas;
     }
 }

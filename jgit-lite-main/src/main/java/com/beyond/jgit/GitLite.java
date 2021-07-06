@@ -842,6 +842,26 @@ public class GitLite {
         }
     }
 
+
+    public void pack() throws IOException {
+        // commit -> index
+        String localCommitObjectId = findLocalCommitObjectId();
+        List<List<CommitChainItemSingleParent>> commitPaths = pathsToSingleParentCommitChains(getChainPaths(getCommitChainHead(localCommitObjectId, EMPTY_OBJECT_ID, objectManager)));
+        for (List<CommitChainItemSingleParent> commitPath : commitPaths) {
+            List<Index> indexList = new ArrayList<>();
+            for (CommitChainItemSingleParent commitChainItemSingleParent : commitPath) {
+                Index index = Index.generateFromCommit(commitChainItemSingleParent.getCommitObjectId(), objectManager);
+                indexList.add(index);
+            }
+            // 构建矩阵
+            //         commit   tree1   path1      path2      path3
+            // index1                   objectId1  objectId2
+            // index2                   objectId3             objectId4
+
+        }
+        // index -> fileHistoryChain (rename)
+    }
+
     @Data
     private static class FileNode {
         private File file;

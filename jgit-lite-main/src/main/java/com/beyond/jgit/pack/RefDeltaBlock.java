@@ -7,13 +7,14 @@ import java.util.List;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
+@ToString(callSuper = true)
 public class RefDeltaBlock extends DeltaBlock {
     private String ref;
 
     public RefDeltaBlock() {
     }
 
-    public RefDeltaBlock(List<Delta> deltas) {
-        super(deltas);
+    public RefDeltaBlock(String objectId, List<Delta> deltas) {
+        super(objectId, deltas);
     }
 }

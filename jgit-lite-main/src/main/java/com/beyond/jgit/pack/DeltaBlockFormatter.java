@@ -36,21 +36,30 @@ public class DeltaBlockFormatter {
         return 12 + blockListSize + 20;
     }
 
-    public static int format(PackFile packFile, byte[] result, int offset) throws IOException {
+    public static PackIndex format(PackFile packFile, byte[] result, int offset) throws IOException {
         PackFile.Header header = packFile.getHeader();
         System.arraycopy(header.getFileFlag(), 0, result, 0, 4);
         System.arraycopy(header.getVersion(), 0, result, 4, 4);
         System.arraycopy(header.getEntries(), 0, result, 8, 4);
         offset += 12;
+
         List<DeltaBlock> deltaBlocks = packFile.getBlockList();
+        offset = format(deltaBlocks, result, offset);
+
+        PackIndex packIndex = PackIndex.newInstance();
         for (DeltaBlock deltaBlock : deltaBlocks) {
-            offset = formatOne(deltaBlock, result, offset);
+            packIndex.add(deltaBlock.getObjectId(), deltaBlock.getStart());
         }
-        PackFile.Trailer trailer = new PackFile.Trailer(DigestUtils.sha1(new ByteArrayInputStream(result, 0, offset)));
+
+        PackFile.Trailer trailer = new PackFile.Trailer((checksum(result, 0, offset)));
         packFile.setTrailer(trailer);
         FormatUtils.writeBytesTo(trailer.getChecksum(), result, offset);
-        offset += 20;
-        return offset;
+        return packIndex;
+    }
+
+    @SuppressWarnings("SameParameterValue")
+    private static byte[] checksum(byte[] bytes, int from, int to) throws IOException {
+        return DigestUtils.sha1(new ByteArrayInputStream(bytes, from, to));
     }
 
     public static int format(List<DeltaBlock> deltaBlocks, byte[] result, int offset) {
@@ -99,7 +108,7 @@ public class DeltaBlockFormatter {
     }
 
 
-    public static PackFile parse(byte[] bytes) {
+    public static PackFile parse(byte[] bytes) throws IOException {
         int offset = 0;
         PackFile packFile = new PackFile();
         byte[] version = new byte[4];
@@ -113,9 +122,16 @@ public class DeltaBlockFormatter {
         packFile.setBlockList(parse(bytes, offset, bytes.length - 20 - offset));
         offset += bytes.length - 20 - offset;
 
-        byte[] checksum = new byte[20];
-        System.arraycopy(bytes, offset, checksum, 0, 20);
-        PackFile.Trailer trailer = new PackFile.Trailer(checksum);
+        byte[] currChecksum = checksum(bytes, 0, offset);
+
+        byte[] checksumSaved = new byte[20];
+        System.arraycopy(bytes, offset, checksumSaved, 0, 20);
+
+        if (!Arrays.equals(currChecksum, checksumSaved)) {
+            throw new RuntimeException("checksum error");
+        }
+
+        PackFile.Trailer trailer = new PackFile.Trailer(checksumSaved);
         packFile.setTrailer(trailer);
         return packFile;
     }
@@ -177,8 +193,8 @@ public class DeltaBlockFormatter {
 
         List<DeltaBlock> blockList = new ArrayList<>();
         List<Delta> deltas = DeltaUtils.makeDeltas(target, base);
-        RefDeltaBlock deltaBlock = new RefDeltaBlock(deltas);
-        deltaBlock.setRef(ObjectUtils.sha1hash(new byte[]{1,2,3,5}));
+        RefDeltaBlock deltaBlock = new RefDeltaBlock(ObjectUtils.sha1hash(new byte[]{32,23,5}),deltas);
+        deltaBlock.setRef(ObjectUtils.sha1hash(new byte[]{1, 2, 3, 5}));
         blockList.add(deltaBlock);
         packFile.setBlockList(blockList);
 
@@ -190,7 +206,9 @@ public class DeltaBlockFormatter {
         System.out.println(DeltaUtils.parse(new byte[]{12, 0, 3, 12, 12, 18, 69, 24, 121, 122, 55, 56, 57, 9, 29, 6, 71, 38, 109, 105, 105, 100, 102, 97, 100}));
 
         byte[] a = new byte[size(packFile)];
-        format(packFile, a, 0);
+        PackIndex packIndex = format(packFile, a, 0);
+        System.out.println(packIndex);
+        System.out.println(a.length);
         System.out.println(Arrays.toString(a));
         PackFile packFile1 = parse(a);
         System.out.println(packFile);

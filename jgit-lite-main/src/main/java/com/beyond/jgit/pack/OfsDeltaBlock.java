@@ -5,15 +5,17 @@ import lombok.*;
 
 import java.util.List;
 
+
 @EqualsAndHashCode(callSuper = true)
 @Data
+@ToString(callSuper = true)
 public class OfsDeltaBlock extends DeltaBlock{
     private int ofs;
 
     public OfsDeltaBlock() {
     }
 
-    public OfsDeltaBlock(List<Delta> deltas) {
-        super(deltas);
+    public OfsDeltaBlock(String objectId, List<Delta> deltas) {
+        super(objectId, deltas);
     }
 }
