@@ -5,6 +5,7 @@ import com.beyond.jgit.util.ObjectUtils;
 
 import java.io.IOException;
 
+import static com.beyond.jgit.util.ObjectUtils.EMPTY_HASH;
 import static com.beyond.jgit.util.ObjectUtils.hexToByteArray;
 
 public class ObjectManager {
@@ -21,6 +22,9 @@ public class ObjectManager {
     }
 
     public ObjectEntity read(String objectId) throws IOException {
+        if (objectId.equals(EMPTY_HASH)){
+            return ObjectEntity.EMPTY;
+        }
         byte[] bytes = objectDb.read(objectId);
         return ObjectEntity.parseFrom(bytes);
     }

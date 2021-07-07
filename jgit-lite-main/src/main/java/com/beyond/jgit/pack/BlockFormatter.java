@@ -2,8 +2,11 @@ package com.beyond.jgit.pack;
 
 import com.beyond.delta.DeltaUtils;
 import com.beyond.delta.entity.Delta;
+import com.beyond.jgit.object.ObjectEntity;
 import com.beyond.jgit.util.FormatUtils;
 import com.beyond.jgit.util.ObjectUtils;
+import com.beyond.jgit.util.ZlibCompression;
+import lombok.SneakyThrows;
 import org.apache.commons.codec.digest.DigestUtils;
 
 import java.io.ByteArrayInputStream;
@@ -12,27 +15,33 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.BinaryOperator;
 
 /**
  * todo: test
  */
-public class DeltaBlockFormatter {
+public class BlockFormatter {
 
-    public static int size(DeltaBlock block) {
-        List<Delta> deltas = block.getDeltas();
-        if (block instanceof RefDeltaBlock) {
-            return FormatUtils.dynamicByteSizeOfTypeAndSize(3, DeltaUtils.deltaByteSize(deltas)) + 20 + DeltaUtils.deltaByteSize(deltas);
+    @SneakyThrows
+    public static int size(Block block)  {
+        if (block instanceof BaseBlock) {
+            byte[] compressBytes = ZlibCompression.compressBytes(((BaseBlock) block).getContent());
+            return FormatUtils.dynamicByteSizeOfTypeAndSize(3, ((BaseBlock) block).getContent().length) + compressBytes.length;
         }
-        if (block instanceof OfsDeltaBlock) {
-            return FormatUtils.dynamicByteSizeOfTypeAndSize(3, DeltaUtils.deltaByteSize(deltas)) + FormatUtils.dynamicByteSize(((OfsDeltaBlock) block).getOfs()) + DeltaUtils.deltaByteSize(deltas);
+        if (block instanceof DeltaBlock) {
+            List<Delta> deltas = ((DeltaBlock) block).getDeltas();
+            if (block instanceof RefDeltaBlock) {
+                return FormatUtils.dynamicByteSizeOfTypeAndSize(3, DeltaUtils.deltaByteSize(deltas)) + 20 + DeltaUtils.deltaByteSize(deltas);
+            }
+            if (block instanceof OfsDeltaBlock) {
+                return FormatUtils.dynamicByteSizeOfTypeAndSize(3, DeltaUtils.deltaByteSize(deltas)) + FormatUtils.dynamicByteSize(((OfsDeltaBlock) block).getOfs()) + DeltaUtils.deltaByteSize(deltas);
+            }
         }
         throw new RuntimeException("错误类型");
     }
 
     public static int size(PackFile packFile) {
-        List<DeltaBlock> blockList = packFile.getBlockList();
-        int blockListSize = blockList.stream().map(DeltaBlockFormatter::size).reduce(Integer::sum).orElse(0);
+        List<Block> blockList = packFile.getBlockList();
+        int blockListSize = blockList.stream().map(BlockFormatter::size).reduce(Integer::sum).orElse(0);
         return 12 + blockListSize + 20;
     }
 
@@ -43,12 +52,12 @@ public class DeltaBlockFormatter {
         System.arraycopy(header.getEntries(), 0, result, 8, 4);
         offset += 12;
 
-        List<DeltaBlock> deltaBlocks = packFile.getBlockList();
-        offset = format(deltaBlocks, result, offset);
+        List<Block> blocks = packFile.getBlockList();
+        offset = format(blocks, result, offset);
 
         PackIndex packIndex = PackIndex.newInstance();
-        for (DeltaBlock deltaBlock : deltaBlocks) {
-            packIndex.add(deltaBlock.getObjectId(), deltaBlock.getStart());
+        for (Block block : blocks) {
+            packIndex.add(block.getObjectId(), block.getStart());
         }
 
         PackFile.Trailer trailer = new PackFile.Trailer((checksum(result, 0, offset)));
@@ -62,14 +71,27 @@ public class DeltaBlockFormatter {
         return DigestUtils.sha1(new ByteArrayInputStream(bytes, from, to));
     }
 
-    public static int format(List<DeltaBlock> deltaBlocks, byte[] result, int offset) {
-        for (DeltaBlock deltaBlock : deltaBlocks) {
-            offset = formatOne(deltaBlock, result, offset);
+    public static int format(List<Block> deltaBlocks, byte[] result, int offset) throws IOException {
+        for (Block block : deltaBlocks) {
+            if (block instanceof BaseBlock) {
+                offset = formatOneBase((BaseBlock) block, result, offset);
+            }
+            if (block instanceof DeltaBlock) {
+                offset = formatOneDelta((DeltaBlock) block, result, offset);
+            }
         }
         return offset;
     }
 
-    public static int formatOne(DeltaBlock deltaBlock, byte[] result, int offset) {
+    public static int formatOneBase(BaseBlock baseBlock, byte[] result, int offset) throws IOException {
+        int length = baseBlock.getContent().length;
+        offset = FormatUtils.dynamicAddTypeAndSize(baseBlock.getType().getVal(), 3, length, result, offset);
+        byte[] compressBytes = ZlibCompression.compressBytes(baseBlock.getContent());
+        System.arraycopy(compressBytes, 0, result, offset, compressBytes.length);
+        return offset + compressBytes.length;
+    }
+
+    public static int formatOneDelta(DeltaBlock deltaBlock, byte[] result, int offset) {
         List<Delta> deltas = deltaBlock.getDeltas();
         int deltaByteSize = DeltaUtils.deltaByteSize(deltas);
         if (deltaBlock instanceof OfsDeltaBlock) {
@@ -137,23 +159,35 @@ public class DeltaBlockFormatter {
     }
 
 
-    public static List<DeltaBlock> parse(byte[] bytes, int offset, int len) {
-        List<DeltaBlock> deltaBlocks = new ArrayList<>();
+    public static List<Block> parse(byte[] bytes, int offset, int len) {
+        List<Block> blocks = new ArrayList<>();
         int end = offset + len;
         while (offset < end) {
-            DeltaBlock block = parseNextBlock(bytes, offset);
-            deltaBlocks.add(block);
+            Block block = parseNextBlock(bytes, offset);
+            blocks.add(block);
             offset = block.getEnd();
         }
-        return deltaBlocks;
+        return blocks;
     }
 
 
-    public static DeltaBlock parseNextBlock(byte[] bytes, int offset) {
+    public static Block parseNextBlock(byte[] bytes, int offset) {
         int[] typeAndSize = new int[3];
         offset = FormatUtils.readNextDynamicTypeAndSize(3, bytes, offset, typeAndSize);
         int type = typeAndSize[1];
         int size = typeAndSize[2];
+
+        if (type == 1 || type == 2 || type == 3) {
+            BaseBlock block = new BaseBlock();
+            block.setStart(offset);
+            byte[] content = new byte[size];
+            System.arraycopy(bytes, offset, content, 0, size);
+            block.setContent(content);
+            offset += size;
+            block.setType(ObjectEntity.Type.of(type));
+            block.setEnd(offset);
+            return block;
+        }
 
         if (type == 6) {
             OfsDeltaBlock block = new OfsDeltaBlock();
@@ -191,10 +225,9 @@ public class DeltaBlockFormatter {
         PackFile.Header header = new PackFile.Header(1, 1);
         packFile.setHeader(header);
 
-        List<DeltaBlock> blockList = new ArrayList<>();
+        List<Block> blockList = new ArrayList<>();
         List<Delta> deltas = DeltaUtils.makeDeltas(target, base);
-        RefDeltaBlock deltaBlock = new RefDeltaBlock(ObjectUtils.sha1hash(new byte[]{32,23,5}),deltas);
-        deltaBlock.setRef(ObjectUtils.sha1hash(new byte[]{1, 2, 3, 5}));
+        RefDeltaBlock deltaBlock = new RefDeltaBlock(ObjectUtils.sha1hash(new byte[]{32, 23, 5}), deltas,ObjectUtils.sha1hash(new byte[]{1, 2, 3, 5}));
         blockList.add(deltaBlock);
         packFile.setBlockList(blockList);
 

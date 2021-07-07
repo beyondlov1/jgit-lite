@@ -1,5 +1,6 @@
 package com.beyond.jgit;
 
+import com.beyond.delta.DeltaUtils;
 import com.beyond.jgit.index.Index;
 import com.beyond.jgit.index.IndexDiffResult;
 import com.beyond.jgit.index.IndexDiffer;
@@ -11,6 +12,7 @@ import com.beyond.jgit.object.ObjectManager;
 import com.beyond.jgit.object.data.BlobObjectData;
 import com.beyond.jgit.object.data.CommitObjectData;
 import com.beyond.jgit.object.data.TreeObjectData;
+import com.beyond.jgit.pack.*;
 import com.beyond.jgit.storage.FileStorage;
 import com.beyond.jgit.storage.SardineStorage;
 import com.beyond.jgit.storage.Storage;
@@ -23,6 +25,8 @@ import com.beyond.jgit.util.commitchain.CommitChainUtils;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MultiValuedMap;
+import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -844,22 +848,78 @@ public class GitLite {
 
 
     public void pack() throws IOException {
-        // commit -> index
         String localCommitObjectId = findLocalCommitObjectId();
+
+        List<PackFile> packFiles = new ArrayList<>();
         List<List<CommitChainItemSingleParent>> commitPaths = pathsToSingleParentCommitChains(getChainPaths(getCommitChainHead(localCommitObjectId, EMPTY_OBJECT_ID, objectManager)));
         for (List<CommitChainItemSingleParent> commitPath : commitPaths) {
-            List<Index> indexList = new ArrayList<>();
+            List<List<Index.Entry>> commits = new ArrayList<>();
             for (CommitChainItemSingleParent commitChainItemSingleParent : commitPath) {
-                Index index = Index.generateFromCommit(commitChainItemSingleParent.getCommitObjectId(), objectManager);
-                indexList.add(index);
+                List<Index.Entry> treeAndBlobs = Index.generateTreeAndBlobFromCommit(commitChainItemSingleParent.getCommitObjectId(), objectManager);
+                if (treeAndBlobs != null) {
+                    commits.add(treeAndBlobs);
+                }
             }
-            // 构建矩阵
             //         commit   tree1   path1      path2      path3
             // index1                   objectId1  objectId2
             // index2                   objectId3             objectId4
+            List<Index.Entry> allEntries = commits.stream().flatMap(Collection::stream).collect(Collectors.toList());
+            Map<String, List<Index.Entry>> pathHistory = new LinkedHashMap<>();
+            for (Index.Entry entry : allEntries) {
+                pathHistory.putIfAbsent(entry.getPath(), new ArrayList<>());
+                List<Index.Entry> entries = pathHistory.get(entry.getPath());
+                entries.add(entry);
+            }
+            PackFile packFile = new PackFile();
+            List<Block> blocks = new ArrayList<>();
+            // commit
+            log.info("firstCommit:{}", commitPath.get(0).getCommitObjectId());
+            List<Index.Entry> commitEntry = commitPath.stream().map(x -> {
+                Index.Entry entry = new Index.Entry();
+                entry.setObjectId(x.getCommitObjectId());
+                entry.setType(ObjectEntity.Type.commit);
+                entry.setPath("");
+                return entry;
+            }).collect(Collectors.toList());
+            pathHistory.put("", commitEntry);
 
+            // blob and tree
+            for (List<Index.Entry> entries : pathHistory.values()) {
+                Index.Entry firstEntry = null;
+                int i = 0;
+                for (Index.Entry entry : entries) {
+                    if (i == 0) {
+                        firstEntry = entry;
+                        ObjectEntity targetObjectEntity = objectManager.read(entry.getObjectId());
+                        BaseBlock baseBlock = new BaseBlock(entry.getObjectId(), entry.getType(), targetObjectEntity.getData());
+                        blocks.add(baseBlock);
+                    } else {
+                        ObjectEntity targetObjectEntity = objectManager.read(entry.getObjectId());
+                        if (targetObjectEntity.isEmpty()){
+                            continue;
+                        }
+                        byte[] target = targetObjectEntity.getData();
+
+                        ObjectEntity baseObjectEntity = objectManager.read(firstEntry.getObjectId());
+                        byte[] base = baseObjectEntity.getData();
+
+                        DeltaBlock deltaBlock = new RefDeltaBlock(entry.getObjectId(), DeltaUtils.makeDeltas(target, base), firstEntry.getObjectId());
+                        blocks.add(deltaBlock);
+                    }
+                    i++;
+                }
+            }
+            packFile.setHeader(new PackFile.Header(1, blocks.size()));
+            packFile.setBlockList(blocks);
+            packFiles.add(packFile);
         }
-        // index -> fileHistoryChain (rename)
+        PackFile minPackFile = packFiles.stream().min(Comparator.comparing(BlockFormatter::size)).orElseThrow(() -> new RuntimeException("no packfile"));
+        byte[] formatResult = new byte[BlockFormatter.size(minPackFile)];
+        System.out.println(formatResult.length);
+        PackIndex packIndex = BlockFormatter.format(minPackFile, formatResult, 0);
+        // todo: test
+
+        // optimization: index -> fileHistoryChain (rename)
     }
 
     @Data

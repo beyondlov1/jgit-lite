@@ -11,7 +11,7 @@ import java.util.List;
 @Data
 public class PackFile {
     private Header header;
-    private List<DeltaBlock> blockList;
+    private List<Block> blockList;
     private Trailer trailer;
 
 

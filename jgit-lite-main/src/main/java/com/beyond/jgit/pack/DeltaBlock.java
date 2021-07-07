@@ -6,18 +6,14 @@ import lombok.Data;
 import java.util.List;
 
 @Data
-public abstract class DeltaBlock {
-    private int start;
-    private int end;
-    private String objectId;
+public abstract class DeltaBlock extends Block {
     private List<Delta> deltas;
 
     public DeltaBlock() {
     }
 
-
     public DeltaBlock(String objectId, List<Delta> deltas) {
-        this.objectId = objectId;
+        setObjectId(objectId);
         this.deltas = deltas;
     }
 }

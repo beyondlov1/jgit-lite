@@ -22,7 +22,7 @@ import static com.beyond.jgit.GitLite.EMPTY_OBJECT_ID;
 public class Index {
     private List<Entry> entries = new ArrayList<>();
 
-    public void upsert(Collection<Entry> entries){
+    public void upsert(Collection<Entry> entries) {
         Map<String, Entry> tmpMap = this.entries.stream().collect(Collectors.toMap(Entry::getPath, x -> x, (v1, v2) -> v2));
         tmpMap.putAll(entries.stream().collect(Collectors.toMap(Entry::getPath, x -> x, (v1, v2) -> v2)));
         this.entries.clear();
@@ -39,6 +39,7 @@ public class Index {
     public static class Entry {
         private String path;
         private String objectId;
+        private ObjectEntity.Type type;
         private Flag flag = Flag.NONE;
 
         public enum Flag {
@@ -52,7 +53,7 @@ public class Index {
         List<Entry> entries = index.getEntries();
         for (File file : files) {
             Entry entry = new Entry();
-            entry.setPath(PathUtils.getRelativePath(localDir,file.getAbsolutePath()));
+            entry.setPath(PathUtils.getRelativePath(localDir, file.getAbsolutePath()));
             entry.setObjectId(ObjectUtils.sha1hash(ObjectEntity.Type.blob, file));
             entries.add(entry);
         }
@@ -63,7 +64,7 @@ public class Index {
 
     public static Index generateFromIndexFile(File indexFile) throws IOException {
         byte[] bytes = FileUtils.readFileToByteArray(indexFile);
-        if (bytes!= null){
+        if (bytes != null) {
             return JsonUtils.readValue(bytes, Index.class);
         }
         return null;
@@ -71,10 +72,10 @@ public class Index {
 
 
     public static Index generateFromCommit(String commitObjectId, ObjectManager objectManager) throws IOException {
-        if (commitObjectId == null){
+        if (commitObjectId == null) {
             return null;
         }
-        if (Objects.equals(commitObjectId, EMPTY_OBJECT_ID)){
+        if (Objects.equals(commitObjectId, EMPTY_OBJECT_ID)) {
             return null;
         }
         ObjectEntity commit = objectManager.read(commitObjectId);
@@ -94,17 +95,56 @@ public class Index {
         return index;
     }
 
+    @SuppressWarnings("DuplicatedCode")
     private static void walk(String treeObjectId, String parentPath, ObjectManager objectManager, List<Entry> entries) throws IOException {
         ObjectEntity tree = objectManager.read(treeObjectId);
         TreeObjectData treeData = TreeObjectData.parseFrom(tree.getData());
         for (TreeObjectData.TreeEntry treeEntry : treeData.getEntries()) {
-            if (treeEntry.getType() == ObjectEntity.Type.blob){
+            if (treeEntry.getType() == ObjectEntity.Type.blob) {
                 Entry entry = new Entry();
                 entry.setObjectId(treeEntry.getObjectId());
                 entry.setPath(PathUtils.concat(parentPath, treeEntry.getName()));
+                entry.setType(ObjectEntity.Type.blob);
                 entries.add(entry);
             }
-            if (treeEntry.getType() == ObjectEntity.Type.tree){
+            if (treeEntry.getType() == ObjectEntity.Type.tree) {
+                walk(treeEntry.getObjectId(), PathUtils.concat(parentPath, treeEntry.getName()), objectManager, entries);
+            }
+        }
+    }
+
+    public static List<Entry> generateTreeAndBlobFromCommit(String commitObjectId, ObjectManager objectManager) throws IOException {
+        if (commitObjectId == null) {
+            return null;
+        }
+        if (Objects.equals(commitObjectId, EMPTY_OBJECT_ID)) {
+            return null;
+        }
+        ObjectEntity commit = objectManager.read(commitObjectId);
+
+        List<Entry> entries = new ArrayList<>();
+        CommitObjectData commitObjectData = CommitObjectData.parseFrom(commit.getData());
+        walk(commitObjectData.getTree(), "", objectManager, entries);
+        entries.sort(Comparator.comparing(Entry::getPath));
+        return entries;
+    }
+
+    @SuppressWarnings("DuplicatedCode")
+    public static void walkTreeAndBlob(String treeObjectId, String parentPath, ObjectManager objectManager, List<Entry> entries) throws IOException {
+        ObjectEntity tree = objectManager.read(treeObjectId);
+        TreeObjectData treeData = TreeObjectData.parseFrom(tree.getData());
+        for (TreeObjectData.TreeEntry treeEntry : treeData.getEntries()) {
+            Entry entry = new Entry();
+            entry.setObjectId(treeEntry.getObjectId());
+            entry.setPath(PathUtils.concat(parentPath, treeEntry.getName()));
+            entries.add(entry);
+            if (treeEntry.getType() == ObjectEntity.Type.blob) {
+                entry.setType(ObjectEntity.Type.blob);
+                entries.add(entry);
+            }
+            if (treeEntry.getType() == ObjectEntity.Type.tree) {
+
+                entry.setType(ObjectEntity.Type.tree);
                 walk(treeEntry.getObjectId(), PathUtils.concat(parentPath, treeEntry.getName()), objectManager, entries);
             }
         }

@@ -8,6 +8,8 @@ import java.util.Arrays;
 @Data
 public class ObjectEntity {
 
+    public static final ObjectEntity EMPTY = new ObjectEntity(Type.commit, new byte[0]);
+
     private Type type;
     /**
      * @see com.beyond.jgit.object.data.BlobObjectData
@@ -24,7 +26,7 @@ public class ObjectEntity {
         this.data = data;
     }
 
-    public static ObjectEntity parseFrom(byte[] bytes){
+    public static ObjectEntity parseFrom(byte[] bytes) {
         if (bytes == null || bytes.length == 0) {
             return null;
         }
@@ -57,14 +59,56 @@ public class ObjectEntity {
         return objectEntity;
     }
 
-    public byte[] toBytes(){
+    public byte[] toBytes() {
         return ObjectUtils.buildObjectBytes(type, data);
     }
 
-    public enum Type {
-        blob,
-        tree,
-        commit
-        ;
+    public boolean isEmpty(){
+        return data == null || data.length == 0;
     }
+
+    public enum Type {
+        /**
+         * commit
+         */
+        commit(1),
+
+
+        /**
+         * tree
+         */
+        tree(2),
+
+        /**
+         * blob
+         */
+        blob(3)
+        ;
+
+        /**
+         * value
+         */
+        private int val;
+
+        Type(int val) {
+            this.val = val;
+        }
+
+        public static Type of(int type) {
+            switch (type) {
+                case 1:
+                    return commit;
+                case 2:
+                    return tree;
+                case 3:
+                    return blob;
+                default:
+                    throw new RuntimeException("type error");
+            }
+        }
+
+        public int getVal() {
+            return val;
+        }
+        }
 }

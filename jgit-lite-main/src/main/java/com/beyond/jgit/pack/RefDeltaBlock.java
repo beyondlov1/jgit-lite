@@ -14,7 +14,9 @@ public class RefDeltaBlock extends DeltaBlock {
     public RefDeltaBlock() {
     }
 
-    public RefDeltaBlock(String objectId, List<Delta> deltas) {
+
+    public RefDeltaBlock(String objectId, List<Delta> deltas, String ref) {
         super(objectId, deltas);
+        this.ref = ref;
     }
 }

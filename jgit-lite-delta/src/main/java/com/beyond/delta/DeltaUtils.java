@@ -15,13 +15,7 @@ import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @SuppressWarnings("UnstableApiUsage")
@@ -44,7 +38,6 @@ public class DeltaUtils {
                 originChunkMap.put(chunk.getHash(), chunk);
             }
         }
-        System.out.println(originChunkMap);
 
         List<Slice> result = new ArrayList<>();
 
@@ -155,7 +148,7 @@ public class DeltaUtils {
         }
 
         Slice endLongestChainSlice = getLongestChainSlice(lastSliceArray);
-        if (CollectionUtils.isNotEmpty(endLongestChainSlice.getCandidates())) {
+        if (endLongestChainSlice != null && CollectionUtils.isNotEmpty(endLongestChainSlice.getCandidates())) {
             result.add(endLongestChainSlice);
         }
 
@@ -205,7 +198,7 @@ public class DeltaUtils {
     }
 
     private static Slice getLongestChainSlice(Slice[] sliceArray) {
-        return Arrays.stream(sliceArray).max((o1, o2) -> {
+        return Arrays.stream(sliceArray).filter(Objects::nonNull).max((o1, o2) -> {
             List<Slice.Candidate> candidates1 = o1.getCandidates();
             Integer maxLengthPerSlice1 = candidates1.stream().map(Slice.Candidate::getTotalLength).max(ComparatorUtils.naturalComparator()).orElse(0);
 
