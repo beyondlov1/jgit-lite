@@ -63,7 +63,7 @@ public class ObjectEntity {
         return ObjectUtils.buildObjectBytes(type, data);
     }
 
-    public boolean isEmpty(){
+    public boolean isEmpty() {
         return data == null || data.length == 0;
     }
 
@@ -82,8 +82,7 @@ public class ObjectEntity {
         /**
          * blob
          */
-        blob(3)
-        ;
+        blob(3);
 
         /**
          * value
@@ -110,5 +109,5 @@ public class ObjectEntity {
         public int getVal() {
             return val;
         }
-        }
+    }
 }

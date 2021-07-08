@@ -8,6 +8,7 @@ import com.beyond.jgit.util.ObjectUtils;
 import com.beyond.jgit.util.ZlibCompression;
 import lombok.SneakyThrows;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.collections4.CollectionUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -25,7 +26,7 @@ public class BlockFormatter {
     public static int size(Block block)  {
         if (block instanceof BaseBlock) {
             byte[] compressBytes = ZlibCompression.compressBytes(((BaseBlock) block).getContent());
-            return FormatUtils.dynamicByteSizeOfTypeAndSize(3, ((BaseBlock) block).getContent().length) + compressBytes.length;
+            return FormatUtils.dynamicByteSizeOfTypeAndSize(3,compressBytes.length) + compressBytes.length;
         }
         if (block instanceof DeltaBlock) {
             List<Delta> deltas = ((DeltaBlock) block).getDeltas();
@@ -71,8 +72,8 @@ public class BlockFormatter {
         return DigestUtils.sha1(new ByteArrayInputStream(bytes, from, to));
     }
 
-    public static int format(List<Block> deltaBlocks, byte[] result, int offset) throws IOException {
-        for (Block block : deltaBlocks) {
+    public static int format(List<Block> blocks, byte[] result, int offset) throws IOException {
+        for (Block block : blocks) {
             if (block instanceof BaseBlock) {
                 offset = formatOneBase((BaseBlock) block, result, offset);
             }
@@ -84,11 +85,13 @@ public class BlockFormatter {
     }
 
     public static int formatOneBase(BaseBlock baseBlock, byte[] result, int offset) throws IOException {
-        int length = baseBlock.getContent().length;
-        offset = FormatUtils.dynamicAddTypeAndSize(baseBlock.getType().getVal(), 3, length, result, offset);
+        baseBlock.setStart(offset);
         byte[] compressBytes = ZlibCompression.compressBytes(baseBlock.getContent());
-        System.arraycopy(compressBytes, 0, result, offset, compressBytes.length);
-        return offset + compressBytes.length;
+        int length = compressBytes.length;
+        offset = FormatUtils.dynamicAddTypeAndSize(baseBlock.getType().getVal(), 3, length, result, offset);
+        System.arraycopy(compressBytes, 0, result, offset, length);
+        baseBlock.setEnd(offset + length);
+        return offset + length;
     }
 
     public static int formatOneDelta(DeltaBlock deltaBlock, byte[] result, int offset) {
@@ -159,7 +162,7 @@ public class BlockFormatter {
     }
 
 
-    public static List<Block> parse(byte[] bytes, int offset, int len) {
+    public static List<Block> parse(byte[] bytes, int offset, int len) throws IOException {
         List<Block> blocks = new ArrayList<>();
         int end = offset + len;
         while (offset < end) {
@@ -171,7 +174,7 @@ public class BlockFormatter {
     }
 
 
-    public static Block parseNextBlock(byte[] bytes, int offset) {
+    public static Block parseNextBlock(byte[] bytes, int offset) throws IOException {
         int[] typeAndSize = new int[3];
         offset = FormatUtils.readNextDynamicTypeAndSize(3, bytes, offset, typeAndSize);
         int type = typeAndSize[1];
@@ -182,7 +185,7 @@ public class BlockFormatter {
             block.setStart(offset);
             byte[] content = new byte[size];
             System.arraycopy(bytes, offset, content, 0, size);
-            block.setContent(content);
+            block.setContent(ZlibCompression.decompressBytes(content));
             offset += size;
             block.setType(ObjectEntity.Type.of(type));
             block.setEnd(offset);

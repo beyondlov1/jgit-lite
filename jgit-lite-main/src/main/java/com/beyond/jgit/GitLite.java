@@ -886,6 +886,7 @@ public class GitLite {
             // blob and tree
             for (List<Index.Entry> entries : pathHistory.values()) {
                 Index.Entry firstEntry = null;
+                Index.Entry lastEntry = null;
                 int i = 0;
                 for (Index.Entry entry : entries) {
                     if (i == 0) {
@@ -900,12 +901,13 @@ public class GitLite {
                         }
                         byte[] target = targetObjectEntity.getData();
 
-                        ObjectEntity baseObjectEntity = objectManager.read(firstEntry.getObjectId());
+                        ObjectEntity baseObjectEntity = objectManager.read(lastEntry.getObjectId());
                         byte[] base = baseObjectEntity.getData();
 
                         DeltaBlock deltaBlock = new RefDeltaBlock(entry.getObjectId(), DeltaUtils.makeDeltas(target, base), firstEntry.getObjectId());
                         blocks.add(deltaBlock);
                     }
+                    lastEntry = entry;
                     i++;
                 }
             }
@@ -915,9 +917,11 @@ public class GitLite {
         }
         PackFile minPackFile = packFiles.stream().min(Comparator.comparing(BlockFormatter::size)).orElseThrow(() -> new RuntimeException("no packfile"));
         byte[] formatResult = new byte[BlockFormatter.size(minPackFile)];
-        System.out.println(formatResult.length);
         PackIndex packIndex = BlockFormatter.format(minPackFile, formatResult, 0);
+        System.out.println(Arrays.toString(formatResult));
         // todo: test
+        PackFile parsedPackFile = BlockFormatter.parse(formatResult);
+        System.out.println(parsedPackFile);
 
         // optimization: index -> fileHistoryChain (rename)
     }

@@ -2,7 +2,7 @@ package com.beyond.jgit.util;
 
 public class FormatUtils {
 
-    public static int writeBytesTo(byte[] target, byte[] result, int offset){
+    public static int writeBytesTo(byte[] target, byte[] result, int offset) {
         System.arraycopy(target, 0, result, offset, target.length);
         return offset + target.length;
     }
@@ -37,13 +37,16 @@ public class FormatUtils {
         return 5;
     }
 
-    public static int dynamicByteSizeOfTypeAndSize(int typeBitLength, int size){
-        return 1 + dynamicByteSize(size >> (7-typeBitLength));
+    public static int dynamicByteSizeOfTypeAndSize(int typeBitLength, int size) {
+        if ((size >> (7 - typeBitLength)) == 0) {
+            return 1;
+        }
+        return 1 + dynamicByteSize(size >> (7 - typeBitLength));
     }
 
     public static int dynamicAddTypeAndSize(int type, int typeBitLength, int size, byte[] result, int offset) {
         int sizeLength = 7 - typeBitLength;
-        byte sizeFlag = (byte) (0xff >> (typeBitLength+1));
+        byte sizeFlag = (byte) (0xff >> (typeBitLength + 1));
         byte firstByte = (byte) (size & sizeFlag | type << sizeLength);
         if (size > sizeFlag) {
             result[offset] = (byte) (firstByte | 0x80);
@@ -78,9 +81,9 @@ public class FormatUtils {
         return res;
     }
 
-    public static int readNextDynamicTypeAndSize(int typeBitLength, byte[] bytes, int offset, int[] result){
+    public static int readNextDynamicTypeAndSize(int typeBitLength, byte[] bytes, int offset, int[] result) {
         int sizeLength = 7 - typeBitLength;
-        byte sizeFlag = (byte) (0xff >> (typeBitLength+1));
+        byte sizeFlag = (byte) (0xff >> (typeBitLength + 1));
         int nextOffset = offset;
         byte typeAndSizeByte = bytes[offset];
         nextOffset += 1;
@@ -100,7 +103,7 @@ public class FormatUtils {
         return nextOffset;
     }
 
-    public static int readNextDynamicSimpleTypeAndSize(byte[] bytes, int offset, int[] result){
+    public static int readNextDynamicSimpleTypeAndSize(byte[] bytes, int offset, int[] result) {
         return readNextDynamicTypeAndSize(1, bytes, offset, result);
     }
 
