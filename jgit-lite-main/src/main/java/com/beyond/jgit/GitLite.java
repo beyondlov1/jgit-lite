@@ -918,10 +918,12 @@ public class GitLite {
         PackFile minPackFile = packFiles.stream().min(Comparator.comparing(BlockFormatter::size)).orElseThrow(() -> new RuntimeException("no packfile"));
         byte[] formatResult = new byte[BlockFormatter.size(minPackFile)];
         PackIndex packIndex = BlockFormatter.format(minPackFile, formatResult, 0);
+        log.info("packFile size: {}", formatResult.length);
         System.out.println(Arrays.toString(formatResult));
         // todo: test
         PackFile parsedPackFile = BlockFormatter.parse(formatResult);
         System.out.println(parsedPackFile);
+
 
         // optimization: index -> fileHistoryChain (rename)
     }

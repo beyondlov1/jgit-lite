@@ -61,16 +61,12 @@ public class BlockFormatter {
             packIndex.add(block.getObjectId(), block.getStart());
         }
 
-        PackFile.Trailer trailer = new PackFile.Trailer((checksum(result, 0, offset)));
+        PackFile.Trailer trailer = new PackFile.Trailer((FormatUtils.checksum(result, 0, offset)));
         packFile.setTrailer(trailer);
         FormatUtils.writeBytesTo(trailer.getChecksum(), result, offset);
         return packIndex;
     }
 
-    @SuppressWarnings("SameParameterValue")
-    private static byte[] checksum(byte[] bytes, int from, int to) throws IOException {
-        return DigestUtils.sha1(new ByteArrayInputStream(bytes, from, to));
-    }
 
     public static int format(List<Block> blocks, byte[] result, int offset) throws IOException {
         for (Block block : blocks) {
@@ -147,7 +143,7 @@ public class BlockFormatter {
         packFile.setBlockList(parse(bytes, offset, bytes.length - 20 - offset));
         offset += bytes.length - 20 - offset;
 
-        byte[] currChecksum = checksum(bytes, 0, offset);
+        byte[] currChecksum = FormatUtils.checksum(bytes, 0, offset);
 
         byte[] checksumSaved = new byte[20];
         System.arraycopy(bytes, offset, checksumSaved, 0, 20);

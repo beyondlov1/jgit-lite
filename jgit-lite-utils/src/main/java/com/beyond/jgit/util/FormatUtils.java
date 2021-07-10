@@ -1,6 +1,31 @@
 package com.beyond.jgit.util;
 
-public class FormatUtils {
+import org.apache.commons.codec.digest.DigestUtils;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+
+public abstract class FormatUtils {
+
+    public static byte[] checksum(byte[] bytes, int from, int to) throws IOException {
+        return DigestUtils.sha1(new ByteArrayInputStream(bytes, from, to));
+    }
+
+    public static int writeIntTo(int n, byte[] result, int offset) {
+        result[offset + 3] = (byte) (n & 0xff);
+        result[offset + 2] = (byte) (n >> 8 & 0xff);
+        result[offset + 1] = (byte) (n >> 16 & 0xff);
+        result[offset] = (byte) (n >> 24 & 0xff);
+        return offset + 4;
+    }
+
+
+    public static int writeShortTo(short n, byte[] result, int offset) {
+        result[offset + 1] = (byte) (n & 0xff);
+        result[offset] = (byte) (n >> 8 & 0xff);
+        return offset + 2;
+    }
+
 
     public static int writeBytesTo(byte[] target, byte[] result, int offset) {
         System.arraycopy(target, 0, result, offset, target.length);
@@ -112,4 +137,22 @@ public class FormatUtils {
         System.arraycopy(bytes, offset, result, 0, len);
         return result;
     }
+
+    public static int readNextInt(byte[] bytes, int offset) {
+        int res = 0;
+        for (int i = 0; i < 4; i++) {
+            res += (bytes[offset + i] & 0xff) << ((3 - i) * 8);
+        }
+        return res;
+    }
+
+
+    public static int readNextShort(byte[] bytes, int offset) {
+        int res = 0;
+        for (int i = 0; i < 2; i++) {
+            res += (bytes[offset + i] & 0xff) << ((1 - i) * 8);
+        }
+        return res;
+    }
+
 }

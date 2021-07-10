@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 @Data
 public class PackIndex {
 
+    private byte[] packFileChecksum;
     private List<Item> items = new ArrayList<>();
 
     public static PackIndex newInstance(){
@@ -25,7 +26,7 @@ public class PackIndex {
     }
 
     @Data
-    private static class Item{
+    public static class Item{
         private String objectId;
         private int offset;
 

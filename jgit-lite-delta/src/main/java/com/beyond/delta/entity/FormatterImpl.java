@@ -101,18 +101,6 @@ public class FormatterImpl implements Formatter {
     }
 
 
-    public void addInt(int n, byte[] result, int offset) {
-        result[offset + 3] = (byte) (n & 0xff);
-        result[offset + 2] = (byte) (n >> 8 & 0xff);
-        result[offset + 1] = (byte) (n >> 16 & 0xff);
-        result[offset] = (byte) (n >> 24 & 0xff);
-    }
-
-    public void addShort(int n, byte[] result, int offset) {
-        result[offset + 1] = (byte) (n & 0xff);
-        result[offset] = (byte) (n >> 8 & 0xff);
-    }
-
     @Override
     public List<Delta> parse(byte[] deltasBytes) {
         return parse(deltasBytes, 0, deltasBytes.length);
@@ -158,24 +146,6 @@ public class FormatterImpl implements Formatter {
     private static byte readNextByte(byte[] bytes, int offset) {
         return bytes[offset];
     }
-
-    private int readNextInt(byte[] bytes, int offset) {
-        int res = 0;
-        for (int i = 0; i < 4; i++) {
-            res += (bytes[offset + i] & 0xff) << ((3 - i) * 8);
-        }
-        return res;
-    }
-
-
-    private int readNextShort(byte[] bytes, int offset) {
-        int res = 0;
-        for (int i = 0; i < 2; i++) {
-            res += (bytes[offset + i] & 0xff) << ((1 - i) * 8);
-        }
-        return res;
-    }
-
 
 
     public static void main(String[] args) {
