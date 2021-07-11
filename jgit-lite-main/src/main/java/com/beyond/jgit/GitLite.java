@@ -17,16 +17,16 @@ import com.beyond.jgit.storage.FileStorage;
 import com.beyond.jgit.storage.SardineStorage;
 import com.beyond.jgit.storage.Storage;
 import com.beyond.jgit.storage.TransportMapping;
-import com.beyond.jgit.util.*;
+import com.beyond.jgit.util.FileUtil;
+import com.beyond.jgit.util.JsonUtils;
+import com.beyond.jgit.util.ObjectUtils;
+import com.beyond.jgit.util.PathUtils;
 import com.beyond.jgit.util.commitchain.CommitChainItem;
 import com.beyond.jgit.util.commitchain.CommitChainItemLazy;
 import com.beyond.jgit.util.commitchain.CommitChainItemSingleParent;
-import com.beyond.jgit.util.commitchain.CommitChainUtils;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.collections4.MultiValuedMap;
-import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -896,7 +896,7 @@ public class GitLite {
                         blocks.add(baseBlock);
                     } else {
                         ObjectEntity targetObjectEntity = objectManager.read(entry.getObjectId());
-                        if (targetObjectEntity.isEmpty()){
+                        if (targetObjectEntity.isEmpty()) {
                             continue;
                         }
                         byte[] target = targetObjectEntity.getData();
@@ -915,17 +915,60 @@ public class GitLite {
             packFile.setBlockList(blocks);
             packFiles.add(packFile);
         }
-        PackFile minPackFile = packFiles.stream().min(Comparator.comparing(BlockFormatter::size)).orElseThrow(() -> new RuntimeException("no packfile"));
-        byte[] formatResult = new byte[BlockFormatter.size(minPackFile)];
-        PackIndex packIndex = BlockFormatter.format(minPackFile, formatResult, 0);
-        log.info("packFile size: {}", formatResult.length);
-        System.out.println(Arrays.toString(formatResult));
+        PackFile minPackFile = packFiles.stream().min(Comparator.comparing(PackFileFormatter::size)).orElseThrow(() -> new RuntimeException("no packfile"));
+        byte[] packFileBytes = new byte[PackFileFormatter.size(minPackFile)];
+        PackIndex packIndex = PackFileFormatter.format(minPackFile, packFileBytes, 0);
+        log.info("packFile size: {}", packFileBytes.length);
+        System.out.println(Arrays.toString(packFileBytes));
+
+        packIndex.getItems().sort(Comparator.comparing(PackIndex.Item::getObjectId));
+        int k = 0;
+        for (PackIndex.Item item : packIndex.getItems()) {
+            System.out.println(k + " - " + item);
+            k++;
+        }
+
+        System.out.println(packIndex);
+        byte[] packIndexBytes = PackIndexFormatter.format(packIndex);
+        String testObjectId = "7422b5319f481fe703ba1ddac7cfe1290ea3c205";
+        System.out.println(testObjectId);
+        int offsetInPackFile = PackIndexFormatter.indexForOffset(packIndexBytes, testObjectId);
+        System.out.println(offsetInPackFile);
+
         // todo: test
-        PackFile parsedPackFile = BlockFormatter.parse(formatResult);
+        PackFile parsedPackFile = PackFileFormatter.parse(packFileBytes);
         System.out.println(parsedPackFile);
 
+        Block block = PackFileFormatter.parseNextBlock(packFileBytes, offsetInPackFile);
+        System.out.println(block);
+        System.out.println(new String(((BaseBlock) block).getContent()));
+
+        File packDir = new File("/home/beyond/Documents/tmp/pack-test");
+        File packDataFile = File.createTempFile("pack_", ".pack", packDir);
+        File packIndexFile = File.createTempFile("pack_", ".idx", packDir);
+        PackWriter.write(minPackFile, packDataFile, packIndexFile);
+
+        List<ObjectEntity> objectEntities = PackReader.readAllObjects(packDataFile, packIndexFile);
+        for (ObjectEntity objectEntity : objectEntities) {
+            if (objectEntity.getType() == ObjectEntity.Type.blob) {
+                BlobObjectData blobObjectData = BlobObjectData.parseFrom(objectEntity.getData());
+                System.out.println("blob: " + new String(blobObjectData.getData()));
+            }
+
+            if (objectEntity.getType() == ObjectEntity.Type.tree) {
+                TreeObjectData treeObjectData = TreeObjectData.parseFrom(objectEntity.getData());
+                System.out.println("tree: " + treeObjectData.getEntries());
+            }
+
+            if (objectEntity.getType() == ObjectEntity.Type.commit) {
+                CommitObjectData commitObjectData = CommitObjectData.parseFrom(objectEntity.getData());
+                System.out.println("commit: " + commitObjectData);
+            }
+        }
 
         // optimization: index -> fileHistoryChain (rename)
+
+
     }
 
     @Data

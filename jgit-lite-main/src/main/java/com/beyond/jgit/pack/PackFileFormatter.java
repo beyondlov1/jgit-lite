@@ -7,10 +7,7 @@ import com.beyond.jgit.util.FormatUtils;
 import com.beyond.jgit.util.ObjectUtils;
 import com.beyond.jgit.util.ZlibCompression;
 import lombok.SneakyThrows;
-import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.commons.collections4.CollectionUtils;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -20,7 +17,7 @@ import java.util.List;
 /**
  * todo: test
  */
-public class BlockFormatter {
+public class PackFileFormatter {
 
     @SneakyThrows
     public static int size(Block block)  {
@@ -42,7 +39,7 @@ public class BlockFormatter {
 
     public static int size(PackFile packFile) {
         List<Block> blockList = packFile.getBlockList();
-        int blockListSize = blockList.stream().map(BlockFormatter::size).reduce(Integer::sum).orElse(0);
+        int blockListSize = blockList.stream().map(PackFileFormatter::size).reduce(Integer::sum).orElse(0);
         return 12 + blockListSize + 20;
     }
 
@@ -64,6 +61,8 @@ public class BlockFormatter {
         PackFile.Trailer trailer = new PackFile.Trailer((FormatUtils.checksum(result, 0, offset)));
         packFile.setTrailer(trailer);
         FormatUtils.writeBytesTo(trailer.getChecksum(), result, offset);
+
+        packIndex.setPackFileChecksum(trailer.getChecksum());
         return packIndex;
     }
 

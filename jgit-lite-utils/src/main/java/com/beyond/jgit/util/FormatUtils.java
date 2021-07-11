@@ -138,6 +138,11 @@ public abstract class FormatUtils {
         return result;
     }
 
+    public static int readNextUnsignedByte(byte[] bytes, int offset) {
+        return bytes[offset]  & 0xff ;
+    }
+
+
     public static int readNextInt(byte[] bytes, int offset) {
         int res = 0;
         for (int i = 0; i < 4; i++) {

@@ -2,28 +2,26 @@ package com.beyond.jgit.pack;
 
 import com.beyond.jgit.util.FormatUtils;
 import com.beyond.jgit.util.ObjectUtils;
-import org.apache.commons.lang3.ArrayUtils;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class PackIndexFormatter {
 
-    public byte[] format(PackIndex index) throws IOException {
+    public static byte[] format(PackIndex index) throws IOException {
         byte[] result = new byte[byteSize(index)];
         // fanout
         List<PackIndex.Item> sortedItems = index.getItems().stream().sorted(Comparator.comparing(PackIndex.Item::getObjectId)).collect(Collectors.toList());
         int i = 0;
         for (PackIndex.Item item : sortedItems) {
             byte[] sha1Bytes = ObjectUtils.hexToByteArray(item.getObjectId());
-            int fanoutIndex = FormatUtils.readNextInt(sha1Bytes, 0);
+            int fanoutIndex = FormatUtils.readNextUnsignedByte(sha1Bytes, 0);
             FormatUtils.writeIntTo(FormatUtils.readNextInt(result, fanoutIndex * 4) + 1, result, fanoutIndex * 4);
-            FormatUtils.writeIntTo(item.getOffset(), result, 256 + i * 24);
-            FormatUtils.writeBytesTo(sha1Bytes, result, 256 + i * 24 + 4);
+            FormatUtils.writeIntTo(item.getOffset(), result, 256 * 4 + i * 24);
+            FormatUtils.writeBytesTo(sha1Bytes, result, 256 * 4 + i * 24 + 4);
             i++;
         }
         int sum = 0;
@@ -38,30 +36,50 @@ public class PackIndexFormatter {
         return result;
     }
 
-    public int byteSize(PackIndex packIndex) {
+    public static int byteSize(PackIndex packIndex) {
         List<PackIndex.Item> items = packIndex.getItems();
         // fanout(256*4)+(offset+sha-1)*(4+20)+packFileChecksum+packIndexCheckSum
         return 256 * 4 + items.size() * 24 + 20 + 20;
     }
 
-    public int indexForOffset(byte[] indexBytes, String objectId) {
+    public static List<PackIndex.Item> parse(byte[] packIndexBytes) {
+        // todo: checksum
+        List<PackIndex.Item> items = new ArrayList<>();
+        int offset = 256 * 4;
+        while (offset < packIndexBytes.length - 20 - 20) {
+            int offsetInPackFile = FormatUtils.readNextInt(packIndexBytes, offset);
+            byte[] objectId = FormatUtils.readNextBytes(packIndexBytes, offset + 4, 20);
+            PackIndex.Item item = new PackIndex.Item(ObjectUtils.bytesToHex(objectId), offsetInPackFile);
+            items.add(item);
+            offset += 24;
+        }
+        return items;
+    }
+
+    public static int indexForOffset(byte[] indexBytes, String objectId) {
+        // todo: check checksum
         byte[] sha1Bytes = ObjectUtils.hexToByteArray(objectId);
-        int fanoutIndex = FormatUtils.readNextInt(sha1Bytes, 0);
+        int fanoutIndex = FormatUtils.readNextUnsignedByte(sha1Bytes, 0);
         int end = FormatUtils.readNextInt(indexBytes, fanoutIndex * 4);
         if (end == 0) {
             return -1;
         }
-        int start = 0;
+        int startFanoutIndex = 0;
         if (fanoutIndex > 0) {
-            start = fanoutIndex - 1;
+            startFanoutIndex = fanoutIndex - 1;
         }
-        // todo
-        return 0;
+        int start = FormatUtils.readNextInt(indexBytes, startFanoutIndex * 4);
+        int targetItemIndex = binarySearch(indexBytes, sha1Bytes, start, end);
+        return FormatUtils.readNextInt(indexBytes, 256 * 4 + targetItemIndex * 24);
     }
 
-    private int binarySearch(byte[] indexBytes, byte[] sha1Bytes, int start, int end) {
+    private static int binarySearch(byte[] indexBytes, byte[] sha1Bytes, int start, int end) {
         if (start == end) {
-            return start;
+            if (compare(sha1Bytes, 0, indexBytes, 256 * 4 + start * 24 + 4, 20) == 0) {
+                return start;
+            } else {
+                return -1;
+            }
         }
         int mid = (end - start) / 2 + start;
         int compare = compare(sha1Bytes, 0, indexBytes, 256 * 4 + mid * 24 + 4, 20);
@@ -74,16 +92,12 @@ public class PackIndexFormatter {
         }
     }
 
-    public int compare(byte[] bytes1, int bytes1Offset, byte[] bytes2, int bytes2Offset, int len) {
-//        byte[] tmp = new byte[20];
-//        System.arraycopy(bytes2, bytes2Offset, tmp, 0, 20);
-//        System.out.println(Arrays.toString(bytes1));
-//        System.out.println(Arrays.toString(tmp));
+    public static int compare(byte[] bytes1, int bytes1Offset, byte[] bytes2, int bytes2Offset, int len) {
         for (int i = 0; i < len; i++) {
-            if (bytes1[bytes1Offset+i] < bytes2[bytes2Offset+i]) {
+            if (bytes1[bytes1Offset + i] < bytes2[bytes2Offset + i]) {
                 return -1;
             }
-            if (bytes1[bytes1Offset+i] > bytes2[bytes2Offset+i]) {
+            if (bytes1[bytes1Offset + i] > bytes2[bytes2Offset + i]) {
                 return 1;
             }
         }
@@ -105,8 +119,7 @@ public class PackIndexFormatter {
         addItem(new byte[]{1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 5, 1, 1, 1, 1, 1, 1, 1, 8}, 8, items);
         addItem(new byte[]{1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 5, 1, 1, 1, 1, 1, 1, 1, 9}, 9, items);
         System.arraycopy(items, 0, a, 256 * 4, items.length);
-        PackIndexFormatter packIndexFormatter = new PackIndexFormatter();
-        int i = packIndexFormatter.binarySearch(a, new byte[]{1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 0, 10);
+        int i = PackIndexFormatter.binarySearch(a, new byte[]{1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 0, 10);
         System.out.println(i);
     }
 
@@ -116,4 +129,6 @@ public class PackIndexFormatter {
             items[24 * addIndex + 4 + i] = item[i];
         }
     }
+
+
 }

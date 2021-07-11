@@ -124,7 +124,7 @@ public class Index {
 
         List<Entry> entries = new ArrayList<>();
         CommitObjectData commitObjectData = CommitObjectData.parseFrom(commit.getData());
-        walk(commitObjectData.getTree(), "", objectManager, entries);
+        walkTreeAndBlob(commitObjectData.getTree(), "", objectManager, entries);
         entries.sort(Comparator.comparing(Entry::getPath));
         return entries;
     }
