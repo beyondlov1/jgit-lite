@@ -885,12 +885,10 @@ public class GitLite {
 
             // blob and tree
             for (List<Index.Entry> entries : pathHistory.values()) {
-                Index.Entry firstEntry = null;
                 Index.Entry lastEntry = null;
                 int i = 0;
                 for (Index.Entry entry : entries) {
                     if (i == 0) {
-                        firstEntry = entry;
                         ObjectEntity targetObjectEntity = objectManager.read(entry.getObjectId());
                         BaseBlock baseBlock = new BaseBlock(entry.getObjectId(), entry.getType(), targetObjectEntity.getData());
                         blocks.add(baseBlock);
@@ -904,17 +902,19 @@ public class GitLite {
                         ObjectEntity baseObjectEntity = objectManager.read(lastEntry.getObjectId());
                         byte[] base = baseObjectEntity.getData();
 
-                        DeltaBlock deltaBlock = new RefDeltaBlock(entry.getObjectId(), DeltaUtils.makeDeltas(target, base), firstEntry.getObjectId());
+                        DeltaBlock deltaBlock = new RefDeltaBlock(entry.getObjectId(), DeltaUtils.makeDeltas(target, base), lastEntry.getObjectId());
                         blocks.add(deltaBlock);
                     }
                     lastEntry = entry;
                     i++;
                 }
             }
+            // 每一个commitPath一个packFile
             packFile.setHeader(new PackFile.Header(1, blocks.size()));
             packFile.setBlockList(blocks);
             packFiles.add(packFile);
         }
+        // 挑选commitPath中packfile最小的， 这里可能会丢失部分commitPath中的object, fixme
         PackFile minPackFile = packFiles.stream().min(Comparator.comparing(PackFileFormatter::size)).orElseThrow(() -> new RuntimeException("no packfile"));
         byte[] packFileBytes = new byte[PackFileFormatter.size(minPackFile)];
         PackIndex packIndex = PackFileFormatter.format(minPackFile, packFileBytes, 0);
