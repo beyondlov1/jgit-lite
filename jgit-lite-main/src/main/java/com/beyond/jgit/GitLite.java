@@ -851,7 +851,9 @@ public class GitLite {
         String localCommitObjectId = findLocalCommitObjectId();
 
         List<PackFile> packFiles = new ArrayList<>();
-        List<List<CommitChainItemSingleParent>> commitPaths = pathsToSingleParentCommitChains(getChainPaths(getCommitChainHead(localCommitObjectId, EMPTY_OBJECT_ID, objectManager)));
+        Map<String, Block> objectId2BlockMap = new HashMap<>();
+        CommitChainItem commitChainHead = getCommitChainHead(localCommitObjectId, EMPTY_OBJECT_ID, objectManager);
+        List<List<CommitChainItemSingleParent>> commitPaths = pathsToSingleParentCommitChains(getChainPaths(commitChainHead));
         for (List<CommitChainItemSingleParent> commitPath : commitPaths) {
             List<List<Index.Entry>> commits = new ArrayList<>();
             for (CommitChainItemSingleParent commitChainItemSingleParent : commitPath) {
@@ -892,6 +894,7 @@ public class GitLite {
                         ObjectEntity targetObjectEntity = objectManager.read(entry.getObjectId());
                         BaseBlock baseBlock = new BaseBlock(entry.getObjectId(), entry.getType(), targetObjectEntity.getData());
                         blocks.add(baseBlock);
+                        objectId2BlockMap.putIfAbsent(entry.getObjectId(), baseBlock);
                     } else {
                         ObjectEntity targetObjectEntity = objectManager.read(entry.getObjectId());
                         if (targetObjectEntity.isEmpty()) {
@@ -904,6 +907,7 @@ public class GitLite {
 
                         DeltaBlock deltaBlock = new RefDeltaBlock(entry.getObjectId(), DeltaUtils.makeDeltas(target, base), lastEntry.getObjectId());
                         blocks.add(deltaBlock);
+                        objectId2BlockMap.putIfAbsent(entry.getObjectId(), deltaBlock);
                     }
                     lastEntry = entry;
                     i++;
@@ -914,10 +918,15 @@ public class GitLite {
             packFile.setBlockList(blocks);
             packFiles.add(packFile);
         }
-        // 挑选commitPath中packfile最小的， 这里可能会丢失部分commitPath中的object, fixme
-        PackFile minPackFile = packFiles.stream().min(Comparator.comparing(PackFileFormatter::size)).orElseThrow(() -> new RuntimeException("no packfile"));
-        byte[] packFileBytes = new byte[PackFileFormatter.size(minPackFile)];
-        PackIndex packIndex = PackFileFormatter.format(minPackFile, packFileBytes, 0);
+
+        List<Block> blocks = new LinkedList<>();
+        sortBlocksByCommitChain(Collections.singletonList(commitChainHead), objectId2BlockMap, blocks);
+        PackFile finalPackFile = new PackFile();
+        finalPackFile.setBlockList(blocks);
+        finalPackFile.setHeader(new PackFile.Header(1, blocks.size()));
+
+        byte[] packFileBytes = new byte[PackFileFormatter.size(finalPackFile)];
+        PackIndex packIndex = PackFileFormatter.format(finalPackFile, packFileBytes, 0);
         log.info("packFile size: {}", packFileBytes.length);
         System.out.println(Arrays.toString(packFileBytes));
 
@@ -946,7 +955,7 @@ public class GitLite {
         File packDir = new File("/home/beyond/Documents/tmp/pack-test");
         File packDataFile = File.createTempFile("pack_", ".pack", packDir);
         File packIndexFile = File.createTempFile("pack_", ".idx", packDir);
-        PackWriter.write(minPackFile, packDataFile, packIndexFile);
+        PackWriter.write(finalPackFile, packDataFile, packIndexFile);
 
         List<ObjectEntity> objectEntities = PackReader.readAllObjects(packDataFile, packIndexFile);
         for (ObjectEntity objectEntity : objectEntities) {
@@ -969,6 +978,39 @@ public class GitLite {
         // optimization: index -> fileHistoryChain (rename)
 
 
+    }
+
+    private void sortBlocksByCommitChain(List<CommitChainItem> commits, Map<String, Block> objectId2BlockMap, List<Block> blocks) throws IOException {
+
+        if (CollectionUtils.isEmpty(commits)) {
+            return;
+        }
+
+        for (CommitChainItem commit : commits) {
+            String commitObjectId = commit.getCommitObjectId();
+            if (StringUtils.equals(commitObjectId, EMPTY_OBJECT_ID)){
+                continue;
+            }
+            Block commitBlock = objectId2BlockMap.get(commitObjectId);
+            if (commitBlock == null){
+                throw new RuntimeException("block is not exists");
+            }
+            blocks.add(commitBlock);
+            List<Index.Entry> entries = Index.generateTreeAndBlobFromCommit(commitObjectId, objectManager);
+            if (entries == null){
+                continue;
+            }
+            for (Index.Entry entry : entries) {
+                Block treeOrBlobBlock = objectId2BlockMap.get(entry.getObjectId());
+                if (treeOrBlobBlock == null) {
+                    throw new RuntimeException("block is not exists");
+                }
+                blocks.add(treeOrBlobBlock);
+            }
+        }
+
+        List<CommitChainItem> parents = commits.stream().flatMap(x -> x.getParents().stream()).collect(Collectors.toList());
+        sortBlocksByCommitChain(parents, objectId2BlockMap, blocks);
     }
 
     @Data
