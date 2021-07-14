@@ -919,11 +919,31 @@ public class GitLite {
             packFiles.add(packFile);
         }
 
-        List<Block> blocks = new LinkedList<>();
+        LinkedHashSet<Block> blocks = new LinkedHashSet<>();
         sortBlocksByCommitChain(Collections.singletonList(commitChainHead), objectId2BlockMap, blocks);
         PackFile finalPackFile = new PackFile();
-        finalPackFile.setBlockList(blocks);
+        finalPackFile.setBlockList(new ArrayList<>(blocks));
         finalPackFile.setHeader(new PackFile.Header(1, blocks.size()));
+
+        int limit = 1000;
+        List<PackFile> subPackFiles = finalPackFile.split(limit);
+        int size = PackFileFormatter.size(finalPackFile);
+        System.out.println("size:"+size);
+        for (PackFile subPackFile : subPackFiles) {
+            File packDir = new File("/home/beyond/Documents/tmp/pack-test");
+            File packDataTmpFile = File.createTempFile("pack_", ".pack", packDir);
+            File packIndexTmpFile = File.createTempFile("pack_", ".idx", packDir);
+            PackWriter.write(subPackFile, packDataTmpFile, packIndexTmpFile);
+            String checksum = ObjectUtils.bytesToHex(subPackFile.getTrailer().getChecksum());
+            File packDataFile = new File(packDir, "pack_" + checksum + ".pack");
+            File packIndexFile = new File(packDir, "pack_" + checksum + ".idx");
+            FileUtils.copyFile(packDataTmpFile, packDataFile);
+            FileUtils.deleteQuietly(packDataTmpFile);
+            FileUtils.copyFile(packIndexTmpFile, packIndexFile);
+            FileUtils.deleteQuietly(packIndexTmpFile);
+        }
+
+        // todo: test 再 commit 几个之后checksum是否一样
 
         byte[] packFileBytes = new byte[PackFileFormatter.size(finalPackFile)];
         PackIndex packIndex = PackFileFormatter.format(finalPackFile, packFileBytes, 0);
@@ -944,7 +964,6 @@ public class GitLite {
         int offsetInPackFile = PackIndexFormatter.indexForOffset(packIndexBytes, testObjectId);
         System.out.println(offsetInPackFile);
 
-        // todo: test
         PackFile parsedPackFile = PackFileFormatter.parse(packFileBytes);
         System.out.println(parsedPackFile);
 
@@ -953,9 +972,16 @@ public class GitLite {
         System.out.println(new String(((BaseBlock) block).getContent()));
 
         File packDir = new File("/home/beyond/Documents/tmp/pack-test");
-        File packDataFile = File.createTempFile("pack_", ".pack", packDir);
-        File packIndexFile = File.createTempFile("pack_", ".idx", packDir);
-        PackWriter.write(finalPackFile, packDataFile, packIndexFile);
+        File packDataTmpFile = File.createTempFile("pack_", ".pack", packDir);
+        File packIndexTmpFile = File.createTempFile("pack_", ".idx", packDir);
+        PackWriter.write(finalPackFile, packDataTmpFile, packIndexTmpFile);
+        String checksum = ObjectUtils.bytesToHex(finalPackFile.getTrailer().getChecksum());
+        File packDataFile = new File(packDir, "pack_" + checksum + ".pack");
+        File packIndexFile = new File(packDir, "pack_" + checksum + ".idx");
+        FileUtils.copyFile(packDataTmpFile, packDataFile);
+        FileUtils.deleteQuietly(packDataTmpFile);
+        FileUtils.copyFile(packIndexTmpFile, packIndexFile);
+        FileUtils.deleteQuietly(packIndexTmpFile);
 
         List<ObjectEntity> objectEntities = PackReader.readAllObjects(packDataFile, packIndexFile);
         for (ObjectEntity objectEntity : objectEntities) {
@@ -975,12 +1001,15 @@ public class GitLite {
             }
         }
 
+        FileUtils.deleteQuietly(packDataFile);
+        FileUtils.deleteQuietly(packIndexFile);
+
         // optimization: index -> fileHistoryChain (rename)
 
 
     }
 
-    private void sortBlocksByCommitChain(List<CommitChainItem> commits, Map<String, Block> objectId2BlockMap, List<Block> blocks) throws IOException {
+    private void sortBlocksByCommitChain(List<CommitChainItem> commits, Map<String, Block> objectId2BlockMap, LinkedHashSet<Block> blocks) throws IOException {
 
         if (CollectionUtils.isEmpty(commits)) {
             return;
@@ -988,16 +1017,16 @@ public class GitLite {
 
         for (CommitChainItem commit : commits) {
             String commitObjectId = commit.getCommitObjectId();
-            if (StringUtils.equals(commitObjectId, EMPTY_OBJECT_ID)){
+            if (StringUtils.equals(commitObjectId, EMPTY_OBJECT_ID)) {
                 continue;
             }
             Block commitBlock = objectId2BlockMap.get(commitObjectId);
-            if (commitBlock == null){
+            if (commitBlock == null) {
                 throw new RuntimeException("block is not exists");
             }
             blocks.add(commitBlock);
             List<Index.Entry> entries = Index.generateTreeAndBlobFromCommit(commitObjectId, objectManager);
-            if (entries == null){
+            if (entries == null) {
                 continue;
             }
             for (Index.Entry entry : entries) {
