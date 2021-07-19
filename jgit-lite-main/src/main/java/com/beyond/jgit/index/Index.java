@@ -124,28 +124,39 @@ public class Index {
 
         List<Entry> entries = new ArrayList<>();
         CommitObjectData commitObjectData = CommitObjectData.parseFrom(commit.getData());
-        walkTreeAndBlob(commitObjectData.getTree(), "", objectManager, entries);
+
+        Entry rootTreeEntry = new Entry();
+        rootTreeEntry.setObjectId(commitObjectData.getTree());
+        rootTreeEntry.setPath("");
+        rootTreeEntry.setType(ObjectEntity.Type.tree);
+
+        walkTreeAndBlob(rootTreeEntry, objectManager, entries);
         entries.sort(Comparator.comparing(Entry::getPath));
         return entries;
     }
 
     @SuppressWarnings("DuplicatedCode")
-    public static void walkTreeAndBlob(String treeObjectId, String parentPath, ObjectManager objectManager, List<Entry> entries) throws IOException {
-        ObjectEntity tree = objectManager.read(treeObjectId);
+    public static void walkTreeAndBlob(Entry treeEntity, ObjectManager objectManager, List<Entry> entries) throws IOException {
+
+        if (treeEntity.getType() != ObjectEntity.Type.tree){
+            throw new RuntimeException("类型错误");
+        }
+        entries.add(treeEntity);
+
+        ObjectEntity tree = objectManager.read(treeEntity.getObjectId());
         TreeObjectData treeData = TreeObjectData.parseFrom(tree.getData());
         for (TreeObjectData.TreeEntry treeEntry : treeData.getEntries()) {
             Entry entry = new Entry();
             entry.setObjectId(treeEntry.getObjectId());
-            entry.setPath(PathUtils.concat(parentPath, treeEntry.getName()));
+            entry.setPath(PathUtils.concat(treeEntity.getPath(), treeEntry.getName()));
             entries.add(entry);
             if (treeEntry.getType() == ObjectEntity.Type.blob) {
                 entry.setType(ObjectEntity.Type.blob);
                 entries.add(entry);
             }
             if (treeEntry.getType() == ObjectEntity.Type.tree) {
-
                 entry.setType(ObjectEntity.Type.tree);
-                walk(treeEntry.getObjectId(), PathUtils.concat(parentPath, treeEntry.getName()), objectManager, entries);
+                walkTreeAndBlob(entry, objectManager, entries);
             }
         }
     }

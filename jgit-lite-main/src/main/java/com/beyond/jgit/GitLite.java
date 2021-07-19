@@ -880,10 +880,10 @@ public class GitLite {
                 Index.Entry entry = new Index.Entry();
                 entry.setObjectId(x.getCommitObjectId());
                 entry.setType(ObjectEntity.Type.commit);
-                entry.setPath("");
+                entry.setPath("commit");
                 return entry;
             }).collect(Collectors.toList());
-            pathHistory.put("", commitEntry);
+            pathHistory.put("commit", commitEntry);
 
             // blob and tree
             for (List<Index.Entry> entries : pathHistory.values()) {
@@ -895,6 +895,14 @@ public class GitLite {
                         BaseBlock baseBlock = new BaseBlock(entry.getObjectId(), entry.getType(), targetObjectEntity.getData());
                         blocks.add(baseBlock);
                         objectId2BlockMap.putIfAbsent(entry.getObjectId(), baseBlock);
+
+                        // region debug
+                        System.out.println(entry.getType()+":"+entry.getObjectId());
+                        if (entry.getType() == ObjectEntity.Type.commit){
+                            CommitObjectData commitObjectData = CommitObjectData.parseFrom(targetObjectEntity.getData());
+                            System.out.println("commitData:"+commitObjectData);
+                        }
+                        // endregion
                     } else {
                         ObjectEntity targetObjectEntity = objectManager.read(entry.getObjectId());
                         if (targetObjectEntity.isEmpty()) {
@@ -908,6 +916,14 @@ public class GitLite {
                         DeltaBlock deltaBlock = new RefDeltaBlock(entry.getObjectId(), DeltaUtils.makeDeltas(target, base), lastEntry.getObjectId());
                         blocks.add(deltaBlock);
                         objectId2BlockMap.putIfAbsent(entry.getObjectId(), deltaBlock);
+
+                        // region debug
+                        System.out.println(entry.getType()+":"+entry.getObjectId());
+                        if (entry.getType() == ObjectEntity.Type.commit){
+                            CommitObjectData commitObjectData = CommitObjectData.parseFrom(targetObjectEntity.getData());
+                            System.out.println("commitData:"+commitObjectData);
+                        }
+                        // endregion
                     }
                     lastEntry = entry;
                     i++;
@@ -921,14 +937,21 @@ public class GitLite {
 
         LinkedHashSet<Block> blocks = new LinkedHashSet<>();
         sortBlocksByCommitChain(Collections.singletonList(commitChainHead), objectId2BlockMap, blocks);
+
+        // region debug
+        for (Block block : blocks) {
+            System.out.println(block.getClass().getSimpleName() + ":" + block.getObjectId());
+        }
+        // endregion
+
         PackFile finalPackFile = new PackFile();
         finalPackFile.setBlockList(new ArrayList<>(blocks));
         finalPackFile.setHeader(new PackFile.Header(1, blocks.size()));
 
-        int limit = 1000;
+        int limit = 500;
         List<PackFile> subPackFiles = finalPackFile.split(limit);
         int size = PackFileFormatter.size(finalPackFile);
-        System.out.println("size:"+size);
+        System.out.println("size:" + size);
         for (PackFile subPackFile : subPackFiles) {
             File packDir = new File("/home/beyond/Documents/tmp/pack-test");
             File packDataTmpFile = File.createTempFile("pack_", ".pack", packDir);
@@ -941,7 +964,29 @@ public class GitLite {
             FileUtils.deleteQuietly(packDataTmpFile);
             FileUtils.copyFile(packIndexTmpFile, packIndexFile);
             FileUtils.deleteQuietly(packIndexTmpFile);
+//            log.info(JsonUtils.writeValueAsString(subPackFile));
+//            log.info(ObjectUtils.bytesToHex(subPackFile.getTrailer().getChecksum()));
+
+            // region debug
+            List<Block> blockList = subPackFile.getBlockList();
+            for (Block block : blockList) {
+                System.out.println(block.getClass().getSimpleName() + ":" + block.getObjectId());
+            }
+            System.out.println();
+            // endregion
         }
+
+        // region debug
+        for (PackFile subPackFile : subPackFiles) {
+            System.out.println(ObjectUtils.bytesToHex(subPackFile.getTrailer().getChecksum()));
+        }
+        // endregion
+
+        // todo: 让pack未发生变化的凑到同一个文件
+
+
+
+        int a = 1 / 0;
 
         // todo: test 再 commit 几个之后checksum是否一样
 

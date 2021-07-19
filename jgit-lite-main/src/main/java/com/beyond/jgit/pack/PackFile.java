@@ -1,8 +1,10 @@
 package com.beyond.jgit.pack;
 
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -10,6 +12,7 @@ import java.util.List;
  * @author chenshipeng
  * @date 2021/07/05
  */
+@Slf4j
 @Data
 public class PackFile {
     private Header header;
@@ -19,13 +22,14 @@ public class PackFile {
     public List<PackFile> split(int limit) {
         List<List<Block>> blockGroups = new ArrayList<>();
         List<Block> reversedBlockList = new ArrayList<>(blockList);
+        Collections.reverse(reversedBlockList);
         int sumSize = 0;
         List<Block> currBlockGroup = new LinkedList<>();
+        blockGroups.add(currBlockGroup);
         for (Block block : reversedBlockList) {
             if (sumSize <= limit){
                 currBlockGroup.add(0,block);
             }else{
-                blockGroups.add(currBlockGroup);
                 currBlockGroup = new LinkedList<>();
                 currBlockGroup.add(0, block);
                 blockGroups.add(currBlockGroup);
@@ -42,6 +46,7 @@ public class PackFile {
             packFiles.add(packFile);
         }
 
+        Collections.reverse(packFiles);
         // todo: 切换文件时的block类型变化
         return packFiles;
     }
