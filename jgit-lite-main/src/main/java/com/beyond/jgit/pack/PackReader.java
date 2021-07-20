@@ -12,64 +12,86 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class PackReader {
-    public static ObjectEntity readObject(String objectId, File packDataFile, File packIndexFile) throws IOException {
-        byte[] packFileBytes = FileUtils.readFileToByteArray(packDataFile);
-        byte[] packIndexBytes = FileUtils.readFileToByteArray(packIndexFile);
-        return readObject(objectId, packFileBytes, packIndexBytes);
+
+    public static ObjectEntity readObject(String objectId, List<PackPair> packPairs) throws IOException {
+        System.out.println("objectId:"+objectId);
+        for (PackPair packPair : packPairs) {
+            byte[] packIndexBytes = packPair.getPackIndexBytes();
+            int offsetInPackFile = PackIndexFormatter.indexForOffset(packIndexBytes, objectId);
+            if (offsetInPackFile < 0) {
+                continue;
+            }
+            byte[] packFileBytes = packPair.getPackDataBytes();
+            Block block = PackFileFormatter.parseNextBlock(packFileBytes, offsetInPackFile);
+            ObjectEntity result = new ObjectEntity();
+            if (block instanceof BaseBlock) {
+                result.setType(((BaseBlock) block).getType());
+                result.setData(((BaseBlock) block).getContent());
+                return result;
+            }
+            if (block instanceof RefDeltaBlock) {
+                String ref = ((RefDeltaBlock) block).getRef();
+                ObjectEntity refObjectEntity = readObject(ref, packPairs);
+                byte[] data = DeltaUtils.applyDeltas(((RefDeltaBlock) block).getDeltas(), refObjectEntity.getData());
+                result.setType(refObjectEntity.getType());
+                result.setData(data);
+                return result;
+            }
+
+            if (block instanceof OfsDeltaBlock) {
+                // not used
+                throw new RuntimeException("OfsDeltaBlock is not supported yet");
+            }
+
+            throw new RuntimeException("read failed");
+        }
+        throw new RuntimeException("read　failed");
     }
 
-    public static ObjectEntity readObject(String objectId, byte[] packFileBytes, byte[] packIndexBytes) throws IOException {
-        int offsetInPackFile = PackIndexFormatter.indexForOffset(packIndexBytes, objectId);
-        Block block = PackFileFormatter.parseNextBlock(packFileBytes, offsetInPackFile);
-        ObjectEntity result = new ObjectEntity();
-        if (block instanceof BaseBlock) {
-            result.setType(((BaseBlock) block).getType());
-            result.setData(((BaseBlock) block).getContent());
-            return result;
-        }
-        if (block instanceof RefDeltaBlock) {
-            String ref = ((RefDeltaBlock) block).getRef();
-            ObjectEntity refObjectEntity = readObject(ref, packFileBytes, packIndexBytes);
-            byte[] data = DeltaUtils.applyDeltas(((RefDeltaBlock) block).getDeltas(), refObjectEntity.getData());
-            result.setType(refObjectEntity.getType());
-            result.setData(data);
-            return result;
-        }
-
-        if (block instanceof OfsDeltaBlock) {
-            // not used
-            throw new RuntimeException("OfsDeltaBlock is not supported yet");
-        }
-
-        throw new RuntimeException("read failed");
-    }
-
-    public static List<ObjectEntity>  readObjects(Collection<String> objectIds, byte[] packFileBytes, byte[] packIndexBytes) throws IOException {
+    public static List<ObjectEntity> readObjects(Collection<String> objectIds, List<PackPair> packPairs) throws IOException {
         List<ObjectEntity> result = new ArrayList<>();
         for (String objectId : objectIds) {
-            result.add(readObject(objectId, packFileBytes, packIndexBytes));
+            result.add(readObject(objectId, packPairs));
         }
         return result;
     }
 
-
-
-    public static List<ObjectEntity> readObjects(Collection<String> objectIds, File packDataFile, File packIndexFile) throws IOException {
-        byte[] packFileBytes = FileUtils.readFileToByteArray(packDataFile);
-        byte[] packIndexBytes = FileUtils.readFileToByteArray(packIndexFile);
-        return readObjects(objectIds, packFileBytes, packIndexBytes);
-    }
-
-    public static List<ObjectEntity> readAllObjects(byte[] packFileBytes, byte[] packIndexBytes) throws IOException {
-        List<PackIndex.Item> items = PackIndexFormatter.parse(packIndexBytes);
+    public static List<ObjectEntity> readAllObjects(List<PackPair> packPairs) throws IOException {
+        List<PackIndex.Item> items = packPairs.stream().flatMap(x -> {
+            try {
+                return PackIndexFormatter.parse(x.getPackIndexBytes()).stream();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }).collect(Collectors.toList());
         List<String> objectIds = items.stream().map(PackIndex.Item::getObjectId).collect(Collectors.toList());
-        return readObjects(objectIds, packFileBytes, packIndexBytes);
+        return readObjects(objectIds, packPairs);
     }
 
-    public static List<ObjectEntity> readAllObjects( File packDataFile, File packIndexFile) throws IOException {
-        byte[] packFileBytes = FileUtils.readFileToByteArray(packDataFile);
-        byte[] packIndexBytes = FileUtils.readFileToByteArray(packIndexFile);
-        return readAllObjects(packFileBytes, packIndexBytes);
-    }
 
+    public static class PackPair {
+        private final File packIndexFile;
+        private final File packDataFile;
+        private byte[] packIndexBytes;
+        private byte[] packDataBytes;
+
+        public PackPair(File packIndexFile, File packDataFile) {
+            this.packIndexFile = packIndexFile;
+            this.packDataFile = packDataFile;
+        }
+
+        public byte[] getPackIndexBytes() throws IOException {
+            if (packIndexBytes == null) {
+                packIndexBytes = FileUtils.readFileToByteArray(packIndexFile);
+            }
+            return packIndexBytes;
+        }
+
+        public byte[] getPackDataBytes() throws IOException {
+            if (packDataBytes == null) {
+                packDataBytes = FileUtils.readFileToByteArray(packDataFile);
+            }
+            return packDataBytes;
+        }
+    }
 }

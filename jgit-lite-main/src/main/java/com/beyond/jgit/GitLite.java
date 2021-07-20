@@ -952,6 +952,7 @@ public class GitLite {
         List<PackFile> subPackFiles = finalPackFile.split(limit);
         int size = PackFileFormatter.size(finalPackFile);
         System.out.println("size:" + size);
+        List<PackReader.PackPair> packPairs = new ArrayList<>();
         for (PackFile subPackFile : subPackFiles) {
             File packDir = new File("/home/beyond/Documents/tmp/pack-test");
             File packDataTmpFile = File.createTempFile("pack_", ".pack", packDir);
@@ -974,6 +975,8 @@ public class GitLite {
             }
             System.out.println();
             // endregion
+
+            packPairs.add(new PackReader.PackPair(packIndexFile, packDataFile));
         }
 
         // region debug
@@ -984,51 +987,7 @@ public class GitLite {
 
         // todo: 让pack未发生变化的凑到同一个文件
 
-
-
-        int a = 1 / 0;
-
-        // todo: test 再 commit 几个之后checksum是否一样
-
-        byte[] packFileBytes = new byte[PackFileFormatter.size(finalPackFile)];
-        PackIndex packIndex = PackFileFormatter.format(finalPackFile, packFileBytes, 0);
-        log.info("packFile size: {}", packFileBytes.length);
-        System.out.println(Arrays.toString(packFileBytes));
-
-        packIndex.getItems().sort(Comparator.comparing(PackIndex.Item::getObjectId));
-        int k = 0;
-        for (PackIndex.Item item : packIndex.getItems()) {
-            System.out.println(k + " - " + item);
-            k++;
-        }
-
-        System.out.println(packIndex);
-        byte[] packIndexBytes = PackIndexFormatter.format(packIndex);
-        String testObjectId = "7422b5319f481fe703ba1ddac7cfe1290ea3c205";
-        System.out.println(testObjectId);
-        int offsetInPackFile = PackIndexFormatter.indexForOffset(packIndexBytes, testObjectId);
-        System.out.println(offsetInPackFile);
-
-        PackFile parsedPackFile = PackFileFormatter.parse(packFileBytes);
-        System.out.println(parsedPackFile);
-
-        Block block = PackFileFormatter.parseNextBlock(packFileBytes, offsetInPackFile);
-        System.out.println(block);
-        System.out.println(new String(((BaseBlock) block).getContent()));
-
-        File packDir = new File("/home/beyond/Documents/tmp/pack-test");
-        File packDataTmpFile = File.createTempFile("pack_", ".pack", packDir);
-        File packIndexTmpFile = File.createTempFile("pack_", ".idx", packDir);
-        PackWriter.write(finalPackFile, packDataTmpFile, packIndexTmpFile);
-        String checksum = ObjectUtils.bytesToHex(finalPackFile.getTrailer().getChecksum());
-        File packDataFile = new File(packDir, "pack_" + checksum + ".pack");
-        File packIndexFile = new File(packDir, "pack_" + checksum + ".idx");
-        FileUtils.copyFile(packDataTmpFile, packDataFile);
-        FileUtils.deleteQuietly(packDataTmpFile);
-        FileUtils.copyFile(packIndexTmpFile, packIndexFile);
-        FileUtils.deleteQuietly(packIndexTmpFile);
-
-        List<ObjectEntity> objectEntities = PackReader.readAllObjects(packDataFile, packIndexFile);
+        List<ObjectEntity> objectEntities = PackReader.readAllObjects(packPairs);
         for (ObjectEntity objectEntity : objectEntities) {
             if (objectEntity.getType() == ObjectEntity.Type.blob) {
                 BlobObjectData blobObjectData = BlobObjectData.parseFrom(objectEntity.getData());
@@ -1046,8 +1005,6 @@ public class GitLite {
             }
         }
 
-        FileUtils.deleteQuietly(packDataFile);
-        FileUtils.deleteQuietly(packIndexFile);
 
         // optimization: index -> fileHistoryChain (rename)
 

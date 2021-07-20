@@ -70,6 +70,9 @@ public class PackIndexFormatter {
         }
         int start = FormatUtils.readNextInt(indexBytes, startFanoutIndex * 4);
         int targetItemIndex = binarySearch(indexBytes, sha1Bytes, start, end);
+        if (targetItemIndex == -1){
+            return -1;
+        }
         return FormatUtils.readNextInt(indexBytes, 256 * 4 + targetItemIndex * 24);
     }
 
@@ -80,6 +83,12 @@ public class PackIndexFormatter {
             } else {
                 return -1;
             }
+        }
+        if (compare(sha1Bytes, 0, indexBytes, 256 * 4 + start * 24 + 4, 20) == 0){
+            return start;
+        }
+        if (compare(sha1Bytes, 0, indexBytes, 256 * 4 + end * 24 + 4, 20) == 0){
+            return end;
         }
         int mid = (end - start) / 2 + start;
         int compare = compare(sha1Bytes, 0, indexBytes, 256 * 4 + mid * 24 + 4, 20);
