@@ -57,6 +57,10 @@ public class PackReader {
     }
 
     public static List<ObjectEntity> readAllObjects(List<PackPair> packPairs) throws IOException {
+        return readObjects(readAllObjectIds(packPairs), packPairs);
+    }
+
+    public static List<String> readAllObjectIds(List<PackPair> packPairs){
         List<PackIndex.Item> items = packPairs.stream().flatMap(x -> {
             try {
                 return PackIndexFormatter.parse(x.getPackIndexBytes()).stream();
@@ -64,10 +68,8 @@ public class PackReader {
                 throw new RuntimeException(e);
             }
         }).collect(Collectors.toList());
-        List<String> objectIds = items.stream().map(PackIndex.Item::getObjectId).collect(Collectors.toList());
-        return readObjects(objectIds, packPairs);
+        return items.stream().map(PackIndex.Item::getObjectId).collect(Collectors.toList());
     }
-
 
     public static class PackPair {
         private final File packIndexFile;
@@ -92,6 +94,14 @@ public class PackReader {
                 packDataBytes = FileUtils.readFileToByteArray(packDataFile);
             }
             return packDataBytes;
+        }
+
+        public File getPackIndexFile() {
+            return packIndexFile;
+        }
+
+        public File getPackDataFile() {
+            return packDataFile;
         }
     }
 }

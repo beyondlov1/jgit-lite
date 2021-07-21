@@ -17,10 +17,7 @@ import com.beyond.jgit.storage.FileStorage;
 import com.beyond.jgit.storage.SardineStorage;
 import com.beyond.jgit.storage.Storage;
 import com.beyond.jgit.storage.TransportMapping;
-import com.beyond.jgit.util.FileUtil;
-import com.beyond.jgit.util.JsonUtils;
-import com.beyond.jgit.util.ObjectUtils;
-import com.beyond.jgit.util.PathUtils;
+import com.beyond.jgit.util.*;
 import com.beyond.jgit.util.commitchain.CommitChainItem;
 import com.beyond.jgit.util.commitchain.CommitChainItemLazy;
 import com.beyond.jgit.util.commitchain.CommitChainItemSingleParent;
@@ -846,11 +843,13 @@ public class GitLite {
         }
     }
 
+    public void repack() throws IOException {
+        repack(100000);
+    }
 
-    public void pack() throws IOException {
+    public void repack(int limit) throws IOException {
         String localCommitObjectId = findLocalCommitObjectId();
 
-        List<PackFile> packFiles = new ArrayList<>();
         Map<String, Block> objectId2BlockMap = new HashMap<>();
         CommitChainItem commitChainHead = getCommitChainHead(localCommitObjectId, EMPTY_OBJECT_ID, objectManager);
         List<List<CommitChainItemSingleParent>> commitPaths = pathsToSingleParentCommitChains(getChainPaths(commitChainHead));
@@ -872,8 +871,6 @@ public class GitLite {
                 List<Index.Entry> entries = pathHistory.get(entry.getPath());
                 entries.add(entry);
             }
-            PackFile packFile = new PackFile();
-            List<Block> blocks = new ArrayList<>();
             // commit
             log.info("firstCommit:{}", commitPath.get(0).getCommitObjectId());
             List<Index.Entry> commitEntry = commitPath.stream().map(x -> {
@@ -893,14 +890,13 @@ public class GitLite {
                     if (i == 0) {
                         ObjectEntity targetObjectEntity = objectManager.read(entry.getObjectId());
                         BaseBlock baseBlock = new BaseBlock(entry.getObjectId(), entry.getType(), targetObjectEntity.getData());
-                        blocks.add(baseBlock);
                         objectId2BlockMap.putIfAbsent(entry.getObjectId(), baseBlock);
 
                         // region debug
-                        System.out.println(entry.getType()+":"+entry.getObjectId());
-                        if (entry.getType() == ObjectEntity.Type.commit){
+                        System.out.println(entry.getType() + ":" + entry.getObjectId());
+                        if (entry.getType() == ObjectEntity.Type.commit) {
                             CommitObjectData commitObjectData = CommitObjectData.parseFrom(targetObjectEntity.getData());
-                            System.out.println("commitData:"+commitObjectData);
+                            System.out.println("commitData:" + commitObjectData);
                         }
                         // endregion
                     } else {
@@ -914,14 +910,13 @@ public class GitLite {
                         byte[] base = baseObjectEntity.getData();
 
                         DeltaBlock deltaBlock = new RefDeltaBlock(entry.getObjectId(), DeltaUtils.makeDeltas(target, base), lastEntry.getObjectId());
-                        blocks.add(deltaBlock);
                         objectId2BlockMap.putIfAbsent(entry.getObjectId(), deltaBlock);
 
                         // region debug
-                        System.out.println(entry.getType()+":"+entry.getObjectId());
-                        if (entry.getType() == ObjectEntity.Type.commit){
+                        System.out.println(entry.getType() + ":" + entry.getObjectId());
+                        if (entry.getType() == ObjectEntity.Type.commit) {
                             CommitObjectData commitObjectData = CommitObjectData.parseFrom(targetObjectEntity.getData());
-                            System.out.println("commitData:"+commitObjectData);
+                            System.out.println("commitData:" + commitObjectData);
                         }
                         // endregion
                     }
@@ -929,10 +924,6 @@ public class GitLite {
                     i++;
                 }
             }
-            // 每一个commitPath一个packFile
-            packFile.setHeader(new PackFile.Header(1, blocks.size()));
-            packFile.setBlockList(blocks);
-            packFiles.add(packFile);
         }
 
         LinkedHashSet<Block> blocks = new LinkedHashSet<>();
@@ -948,25 +939,27 @@ public class GitLite {
         finalPackFile.setBlockList(new ArrayList<>(blocks));
         finalPackFile.setHeader(new PackFile.Header(1, blocks.size()));
 
-        int limit = 500;
         List<PackFile> subPackFiles = finalPackFile.split(limit);
         int size = PackFileFormatter.size(finalPackFile);
         System.out.println("size:" + size);
+
+        PackInfo packInfo = new PackInfo();
         List<PackReader.PackPair> packPairs = new ArrayList<>();
         for (PackFile subPackFile : subPackFiles) {
-            File packDir = new File("/home/beyond/Documents/tmp/pack-test");
-            File packDataTmpFile = File.createTempFile("pack_", ".pack", packDir);
-            File packIndexTmpFile = File.createTempFile("pack_", ".idx", packDir);
+            File packDir = new File(config.getObjectPackDir());
+            FileUtils.forceMkdir(packDir);
+            File packDataTmpFile = File.createTempFile("pack_", ".pack_tmp", packDir);
+            File packIndexTmpFile = File.createTempFile("pack_", ".idx_tmp", packDir);
             PackWriter.write(subPackFile, packDataTmpFile, packIndexTmpFile);
             String checksum = ObjectUtils.bytesToHex(subPackFile.getTrailer().getChecksum());
             File packDataFile = new File(packDir, "pack_" + checksum + ".pack");
             File packIndexFile = new File(packDir, "pack_" + checksum + ".idx");
-            FileUtils.copyFile(packDataTmpFile, packDataFile);
-            FileUtils.deleteQuietly(packDataTmpFile);
-            FileUtils.copyFile(packIndexTmpFile, packIndexFile);
-            FileUtils.deleteQuietly(packIndexTmpFile);
-//            log.info(JsonUtils.writeValueAsString(subPackFile));
-//            log.info(ObjectUtils.bytesToHex(subPackFile.getTrailer().getChecksum()));
+            Files.move(packDataTmpFile.toPath(), packDataFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            Files.move(packIndexTmpFile.toPath(), packIndexFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+
+
+            // write pack info
+            packInfo.add(packDataFile.getName());
 
             // region debug
             List<Block> blockList = subPackFile.getBlockList();
@@ -978,6 +971,41 @@ public class GitLite {
 
             packPairs.add(new PackReader.PackPair(packIndexFile, packDataFile));
         }
+
+        // write pack info tmp
+        String objectInfoDir = config.getObjectInfoDir();
+        File objectInfoDirFile = new File(objectInfoDir);
+        FileUtils.forceMkdir(objectInfoDirFile);
+        File packsTmpFile = File.createTempFile("packs_", ".tmp", objectInfoDirFile);
+        FileUtils.writeStringToFile(packsTmpFile, JsonUtils.writeValueAsString(packInfo), StandardCharsets.UTF_8);
+
+        // delete old packs
+        Set<String> newPackNames = packInfo.getItems().stream().map(PackInfo.Item::getName).collect(Collectors.toSet());
+        File oldPackInfoFile = new File(PathUtils.concat(objectInfoDir, "packs"));
+        if (oldPackInfoFile.exists()){
+            PackInfo oldPackInfo = JsonUtils.readValue(FileUtils.readFileToString(oldPackInfoFile, StandardCharsets.UTF_8), PackInfo.class);
+            if (oldPackInfo != null){
+                for (PackInfo.Item item : oldPackInfo.getItems()) {
+                    String packPath = PathUtils.concat(config.getObjectPackDir(), item.getName());
+                    if (newPackNames.contains(item.getName())){
+                        // 新的包和旧包重名, 表明这个未变化, 不删除
+                        continue;
+                    }
+                    FileUtils.deleteQuietly(new File(packPath));
+                    FileUtils.deleteQuietly(new File(PackUtils.getIndexPath(packPath)));
+                }
+            }
+        }
+
+        // delete packed objectIds
+        List<String> objectIds = PackReader.readAllObjectIds(packPairs);
+        for (String objectId : objectIds) {
+//            objectManager.deleteLooseObject(objectId);
+            System.out.println("deleting:"+objectId);
+        }
+
+        // write pack info
+        Files.move(packsTmpFile.toPath(), oldPackInfoFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 
         // region debug
         for (PackFile subPackFile : subPackFiles) {
@@ -1011,6 +1039,9 @@ public class GitLite {
 
     }
 
+    /**
+     * 按commitChain的顺序排blocks, 多个parent的用广度优先进行遍历
+     */
     private void sortBlocksByCommitChain(List<CommitChainItem> commits, Map<String, Block> objectId2BlockMap, LinkedHashSet<Block> blocks) throws IOException {
 
         if (CollectionUtils.isEmpty(commits)) {

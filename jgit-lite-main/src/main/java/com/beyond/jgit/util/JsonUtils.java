@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
 
@@ -31,6 +33,9 @@ public class JsonUtils {
     }
 
     public static <T> T readValue(String s, Class<T> tClass) {
+        if (StringUtils.isBlank(s)){
+            return null;
+        }
         try {
             return objectMapper.readValue(s, tClass);
         } catch (IOException e) {
@@ -41,6 +46,9 @@ public class JsonUtils {
 
 
     public static <T> T readValue(String s, TypeReference<T> typeReference) {
+        if (StringUtils.isBlank(s)){
+            return null;
+        }
         try {
             return objectMapper.readValue(s, typeReference);
         } catch (IOException e) {
@@ -50,6 +58,9 @@ public class JsonUtils {
     }
 
     public static <T> T readValue(byte[] bytes, Class<T> tClass) {
+        if (ArrayUtils.isEmpty(bytes)){
+            return null;
+        }
         try {
             return objectMapper.readValue(bytes, tClass);
         } catch (IOException e) {

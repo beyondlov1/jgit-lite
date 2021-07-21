@@ -33,6 +33,10 @@ public class ObjectManager {
         return objectDb.exists(objectId);
     }
 
+    public void deleteLooseObject(String objectId) {
+        objectDb.deleteLooseObject(objectId);
+    }
+
     public static void main(String[] args) throws IOException {
 
         String entryPre2 = "100644 no.txt\0";

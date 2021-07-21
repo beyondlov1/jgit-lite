@@ -25,6 +25,8 @@ public class GitLiteConfig {
 
     private List<RemoteConfig> remoteConfigs = new ArrayList<>();
 
+    private String objectPackDir;
+    private String objectInfoDir;
 
     @Data
     public static class RemoteConfig {

@@ -34,6 +34,11 @@ public class ObjectDb {
         return file.exists();
     }
 
+    public void deleteLooseObject(String objectId) {
+        File file = ObjectUtils.getObjectFile(objectsDir, objectId);
+        FileUtils.deleteQuietly(file);
+    }
+
     public static void main(String[] args) throws IOException {
         ObjectDb objectDb = new ObjectDb("/media/beyond/70f23ead-fa6d-4628-acf7-c82133c03245/home/beyond/Documents/tmp-git");
         objectDb.write("hello".getBytes());
