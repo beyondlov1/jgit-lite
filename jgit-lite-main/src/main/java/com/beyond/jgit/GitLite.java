@@ -477,6 +477,9 @@ public class GitLite {
     }
 
 
+    /**
+     * 把remote的更改merge到本地commit中
+     */
     public void merge(String remoteName) throws IOException {
         // 找不同
         // 1. 创建目录结构列表
@@ -1000,8 +1003,9 @@ public class GitLite {
         // delete packed objectIds
         List<String> objectIds = PackReader.readAllObjectIds(packPairs);
         for (String objectId : objectIds) {
+            // fixme: backup and delete for test
 //            objectManager.deleteLooseObject(objectId);
-            System.out.println("deleting:"+objectId);
+            log.info("deleting loose object:"+objectId);
         }
 
         // write pack info
@@ -1009,7 +1013,7 @@ public class GitLite {
 
         // region debug
         for (PackFile subPackFile : subPackFiles) {
-            System.out.println(ObjectUtils.bytesToHex(subPackFile.getTrailer().getChecksum()));
+            log.info("pack file checksum:"+ObjectUtils.bytesToHex(subPackFile.getTrailer().getChecksum()));
         }
         // endregion
 
@@ -1019,22 +1023,90 @@ public class GitLite {
         for (ObjectEntity objectEntity : objectEntities) {
             if (objectEntity.getType() == ObjectEntity.Type.blob) {
                 BlobObjectData blobObjectData = BlobObjectData.parseFrom(objectEntity.getData());
-                System.out.println("blob: " + new String(blobObjectData.getData()));
+                log.info("blob: " + new String(blobObjectData.getData()));
             }
 
             if (objectEntity.getType() == ObjectEntity.Type.tree) {
                 TreeObjectData treeObjectData = TreeObjectData.parseFrom(objectEntity.getData());
-                System.out.println("tree: " + treeObjectData.getEntries());
+                log.info("tree: " + treeObjectData.getEntries());
             }
 
             if (objectEntity.getType() == ObjectEntity.Type.commit) {
                 CommitObjectData commitObjectData = CommitObjectData.parseFrom(objectEntity.getData());
-                System.out.println("commit: " + commitObjectData);
+                log.info("commit: " + commitObjectData);
             }
         }
 
 
         // optimization: index -> fileHistoryChain (rename)
+
+
+    }
+
+    public void packAndPush(String remoteName) throws IOException {
+        repack();
+        Storage remoteStorage = remoteStorageMap.get(remoteName);
+        if (remoteStorage == null) {
+            throw new RuntimeException("remoteStorage is not exist");
+        }
+        File packsInfoFile = new File(PathUtils.concat(config.getObjectInfoDir(), "packs"));
+        if (!packsInfoFile.exists()){
+            push(remoteName);
+            return;
+        }
+        PackInfo packInfo = JsonUtils.readValue(packsInfoFile, PackInfo.class);
+        if (packInfo == null){
+            push(remoteName);
+            return;
+        }
+        List<PackInfo.Item> items = packInfo.getItems();
+        for (PackInfo.Item item : items) {
+
+            String remotePackPath = PathUtils.concat("objects", "pack", item.getName());
+            if (remoteStorage.exists(remotePackPath)){
+                log.info(item.getName()+" pack exists, no upload");
+                continue;
+            }
+            String packPath = PathUtils.concat(config.getObjectPackDir(), item.getName());
+            remoteStorage.upload(new File(packPath), remotePackPath);
+
+            String remoteIndexPath = PackUtils.getIndexPath(remotePackPath);
+            if (remoteStorage.exists(remoteIndexPath)){
+                log.info(item.getName()+" idx exists, no upload");
+                continue;
+            }
+            String indexPath = PackUtils.getIndexPath(packPath);
+            remoteStorage.upload(new File(indexPath),remoteIndexPath);
+
+        }
+
+        Set<String> newPackFileNames = items.stream().map(PackInfo.Item::getName).collect(Collectors.toSet());
+
+        // pack info 移动到packs.old
+        String remotePackInfoPath = PathUtils.concat("objects", "info", "packs");
+        String oldRemotePackInfoPath = PathUtils.concat("objects", "info", "packs.old");
+        remoteStorage.move(remotePackInfoPath, oldRemotePackInfoPath, true);
+
+        // 写入新pack info
+        remoteStorage.upload(packsInfoFile, remotePackInfoPath);
+
+        if (remoteStorage.exists(oldRemotePackInfoPath)){
+            // 删除旧 pack files
+            String oldPackInfoStr = remoteStorage.readFullToString(oldRemotePackInfoPath);
+            PackInfo oldPackInfo = JsonUtils.readValue(oldPackInfoStr, PackInfo.class);
+            if (oldPackInfo != null){
+                for (PackInfo.Item item : oldPackInfo.getItems()) {
+                    if (newPackFileNames.contains(item.getName())){
+                        continue;
+                    }
+                    remoteStorage.delete(PathUtils.concat("objects", "pack", item.getName()));
+                    remoteStorage.delete(PackUtils.getIndexPath(PathUtils.concat("objects", "pack", item.getName())));
+                }
+            }
+
+            // 删除旧 pack info file
+            remoteStorage.delete(oldRemotePackInfoPath);
+        }
 
 
     }

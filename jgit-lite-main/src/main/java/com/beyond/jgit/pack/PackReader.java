@@ -2,6 +2,7 @@ package com.beyond.jgit.pack;
 
 import com.beyond.delta.DeltaUtils;
 import com.beyond.jgit.object.ObjectEntity;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
@@ -11,10 +12,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 public class PackReader {
 
     public static ObjectEntity readObject(String objectId, List<PackPair> packPairs) throws IOException {
-        System.out.println("objectId:"+objectId);
+        log.info("reading from pack, objectId:"+objectId);
         for (PackPair packPair : packPairs) {
             byte[] packIndexBytes = packPair.getPackIndexBytes();
             int offsetInPackFile = PackIndexFormatter.indexForOffset(packIndexBytes, objectId);

@@ -5,6 +5,8 @@ import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Collection;
 import java.util.List;
 
@@ -63,5 +65,35 @@ public class FileStorage extends AbstractStorage {
     @Override
     public String getBasePath() {
         return basePath;
+    }
+
+    @Override
+    public void move(String sourcePath, String targetPath, boolean overwrite) throws IOException {
+        File sourceFile = new File(getAbsPath(sourcePath));
+        if (!sourceFile.exists()){
+            return;
+        }
+        if (overwrite){
+            Files.move(sourceFile.toPath(), new File(getAbsPath(targetPath)).toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        }else{
+            Files.move(sourceFile.toPath(), new File(getAbsPath(targetPath)).toPath(), StandardCopyOption.ATOMIC_MOVE);
+        }
+    }
+
+    private String getAbsPath(String relativePath){
+        return PathUtils.concat(getBasePath(), relativePath);
+    }
+
+    @Override
+    public void copy(String sourcePath, String targetPath, boolean overwrite) throws IOException {
+        File sourceFile = new File(getAbsPath(sourcePath));
+        if (!sourceFile.exists()){
+            return;
+        }
+        if (overwrite){
+            Files.copy(sourceFile.toPath(), new File(getAbsPath(targetPath)).toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        }else{
+            Files.copy(sourceFile.toPath(), new File(getAbsPath(targetPath)).toPath(), StandardCopyOption.ATOMIC_MOVE);
+        }
     }
 }

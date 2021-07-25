@@ -142,6 +142,22 @@ public class SardineStorage extends AbstractStorage {
         return PathUtils.concat(getBasePath(), path.replace(File.separator, "/"));
     }
 
+    @Override
+    public void move(String source, String target, boolean overwrite) throws IOException {
+        if (!exists(source)){
+            return;
+        }
+        sardine.move(getAbsPath(source), getAbsPath(target), overwrite);
+    }
+
+    @Override
+    public void copy(String source, String target, boolean overwrite) throws IOException {
+        if (!exists(source)){
+            return;
+        }
+        sardine.copy(getAbsPath(source), getAbsPath(target), overwrite);
+    }
+
     private static class ExistDirCacheManager {
 
         private String cachePath;
