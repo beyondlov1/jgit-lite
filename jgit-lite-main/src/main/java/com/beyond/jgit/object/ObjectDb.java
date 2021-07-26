@@ -1,11 +1,15 @@
 package com.beyond.jgit.object;
 
+import com.beyond.jgit.pack.PackInfo;
+import com.beyond.jgit.pack.PackReader;
 import com.beyond.jgit.util.ObjectUtils;
+import com.beyond.jgit.util.PackUtils;
 import com.beyond.jgit.util.ZlibCompression;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.*;
 
 
 public class ObjectDb {
@@ -29,14 +33,44 @@ public class ObjectDb {
         return ZlibCompression.decompressBytes(bytes);
     }
 
-    public boolean exists(String objectId) {
+    public boolean exists(String objectId) throws IOException {
+        if (!existsInLoose(objectId)) {
+            return existsInPack(objectId);
+        } else {
+            return true;
+        }
+    }
+
+    public boolean existsInLoose(String objectId) throws IOException {
         File file = ObjectUtils.getObjectFile(objectsDir, objectId);
         return file.exists();
+    }
+
+
+    public boolean existsInPack(String objectId) throws IOException {
+        PackInfo packInfo = PackUtils.readPackInfo(objectsDir);
+        if (packInfo != null) {
+            Set<PackReader.PackPair> packPairs = new HashSet<>();
+            for (PackInfo.Item item : packInfo.getItems()) {
+                packPairs.add(PackUtils.getPackPair(objectsDir, item.getName()));
+            }
+            return existsInPack(objectId, packPairs);
+        }
+        return false;
+    }
+
+    public boolean existsInPack(String objectId, Collection<PackReader.PackPair> packPairs) {
+        Set<String> allObjectIds = new HashSet<>(PackReader.readAllObjectIds(packPairs));
+        return allObjectIds.contains(objectId);
     }
 
     public void deleteLooseObject(String objectId) {
         File file = ObjectUtils.getObjectFile(objectsDir, objectId);
         FileUtils.deleteQuietly(file);
+    }
+
+    public String getObjectsDir() {
+        return objectsDir;
     }
 
     public static void main(String[] args) throws IOException {

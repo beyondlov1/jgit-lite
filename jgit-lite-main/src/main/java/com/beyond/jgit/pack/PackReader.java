@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -62,7 +63,7 @@ public class PackReader {
         return readObjects(readAllObjectIds(packPairs), packPairs);
     }
 
-    public static List<String> readAllObjectIds(List<PackPair> packPairs){
+    public static List<String> readAllObjectIds(Collection<PackPair> packPairs){
         List<PackIndex.Item> items = packPairs.stream().flatMap(x -> {
             try {
                 return PackIndexFormatter.parse(x.getPackIndexBytes()).stream();
@@ -104,6 +105,20 @@ public class PackReader {
 
         public File getPackDataFile() {
             return packDataFile;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            PackPair packPair = (PackPair) o;
+            return Objects.equals(packIndexFile, packPair.packIndexFile) &&
+                    Objects.equals(packDataFile, packPair.packDataFile);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(packIndexFile, packDataFile);
         }
     }
 }

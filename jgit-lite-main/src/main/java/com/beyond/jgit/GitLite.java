@@ -371,6 +371,9 @@ public class GitLite {
             }
         }
 
+        // 下载packs
+        fetchPacks(remoteName);
+
         // 根据 remote head 判断需要下载那些objects
         String remoteCommitObjectId = findRemoteCommitObjectId(remoteName);
         String remoteLockCommitObjectId = findRemoteLockCommitObjectId(remoteName);
@@ -392,6 +395,29 @@ public class GitLite {
         // update head
         Files.move(remoteHeadLockFile.toPath(), remoteHeadFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 
+    }
+
+    /**
+     * 下载packs
+     */
+    private void fetchPacks(String remoteName) throws IOException {
+        Storage remoteStorage = remoteStorageMap.get(remoteName);
+        String remotePackInfoPath = PathUtils.concat("objects", "info", "packs");
+        File packInfoFileTmp = new File(config.getObjectInfoDir(), "packs.tmp");
+        if (remoteStorage.exists(remotePackInfoPath)) {
+            remoteStorage.download(remotePackInfoPath, packInfoFileTmp);
+        }
+        String packInfoStr = FileUtils.readFileToString(packInfoFileTmp, StandardCharsets.UTF_8);
+        PackInfo packInfo = JsonUtils.readValue(packInfoStr, PackInfo.class);
+        if (packInfo!=null){
+            for (PackInfo.Item item : packInfo.getItems()) {
+                String remotePackPath = PathUtils.concat("objects", "pack", item.getName());
+                remoteStorage.download(remotePackPath, new File(config.getObjectPackDir(),item.getName()));
+            }
+        }
+
+        File packInfoFile = new File(config.getObjectInfoDir(), "packs");
+        FileUtil.move(packInfoFileTmp, packInfoFile);
     }
 
 
@@ -422,8 +448,8 @@ public class GitLite {
     }
 
     private void downloadByObjectIdRecursive(String objectId, Storage remoteStorage) throws IOException {
-        File objectFile = ObjectUtils.getObjectFile(config.getObjectsDir(), objectId);
-        if (!objectFile.exists()) {
+        if (!objectManager.exists(objectId)) {
+            File objectFile = ObjectUtils.getObjectFile(config.getObjectsDir(), objectId);
             FileUtils.forceMkdirParent(objectFile);
             remoteStorage.download(PathUtils.concat("objects", ObjectUtils.path(objectId)), objectFile);
         }
@@ -985,12 +1011,12 @@ public class GitLite {
         // delete old packs
         Set<String> newPackNames = packInfo.getItems().stream().map(PackInfo.Item::getName).collect(Collectors.toSet());
         File oldPackInfoFile = new File(PathUtils.concat(objectInfoDir, "packs"));
-        if (oldPackInfoFile.exists()){
+        if (oldPackInfoFile.exists()) {
             PackInfo oldPackInfo = JsonUtils.readValue(FileUtils.readFileToString(oldPackInfoFile, StandardCharsets.UTF_8), PackInfo.class);
-            if (oldPackInfo != null){
+            if (oldPackInfo != null) {
                 for (PackInfo.Item item : oldPackInfo.getItems()) {
                     String packPath = PathUtils.concat(config.getObjectPackDir(), item.getName());
-                    if (newPackNames.contains(item.getName())){
+                    if (newPackNames.contains(item.getName())) {
                         // 新的包和旧包重名, 表明这个未变化, 不删除
                         continue;
                     }
@@ -1005,7 +1031,7 @@ public class GitLite {
         for (String objectId : objectIds) {
             // fixme: backup and delete for test
 //            objectManager.deleteLooseObject(objectId);
-            log.info("deleting loose object:"+objectId);
+            log.info("deleting loose object:" + objectId);
         }
 
         // write pack info
@@ -1013,7 +1039,7 @@ public class GitLite {
 
         // region debug
         for (PackFile subPackFile : subPackFiles) {
-            log.info("pack file checksum:"+ObjectUtils.bytesToHex(subPackFile.getTrailer().getChecksum()));
+            log.info("pack file checksum:" + ObjectUtils.bytesToHex(subPackFile.getTrailer().getChecksum()));
         }
         // endregion
 
@@ -1050,12 +1076,12 @@ public class GitLite {
             throw new RuntimeException("remoteStorage is not exist");
         }
         File packsInfoFile = new File(PathUtils.concat(config.getObjectInfoDir(), "packs"));
-        if (!packsInfoFile.exists()){
+        if (!packsInfoFile.exists()) {
             push(remoteName);
             return;
         }
         PackInfo packInfo = JsonUtils.readValue(packsInfoFile, PackInfo.class);
-        if (packInfo == null){
+        if (packInfo == null) {
             push(remoteName);
             return;
         }
@@ -1063,20 +1089,20 @@ public class GitLite {
         for (PackInfo.Item item : items) {
 
             String remotePackPath = PathUtils.concat("objects", "pack", item.getName());
-            if (remoteStorage.exists(remotePackPath)){
-                log.info(item.getName()+" pack exists, no upload");
+            if (remoteStorage.exists(remotePackPath)) {
+                log.info(item.getName() + " pack exists, no upload");
                 continue;
             }
             String packPath = PathUtils.concat(config.getObjectPackDir(), item.getName());
             remoteStorage.upload(new File(packPath), remotePackPath);
 
             String remoteIndexPath = PackUtils.getIndexPath(remotePackPath);
-            if (remoteStorage.exists(remoteIndexPath)){
-                log.info(item.getName()+" idx exists, no upload");
+            if (remoteStorage.exists(remoteIndexPath)) {
+                log.info(item.getName() + " idx exists, no upload");
                 continue;
             }
             String indexPath = PackUtils.getIndexPath(packPath);
-            remoteStorage.upload(new File(indexPath),remoteIndexPath);
+            remoteStorage.upload(new File(indexPath), remoteIndexPath);
 
         }
 
@@ -1088,15 +1114,20 @@ public class GitLite {
         remoteStorage.move(remotePackInfoPath, oldRemotePackInfoPath, true);
 
         // 写入新pack info
-        remoteStorage.upload(packsInfoFile, remotePackInfoPath);
+        try {
+            remoteStorage.upload(packsInfoFile, remotePackInfoPath);
+        } catch (Exception e) {
+            remoteStorage.move(oldRemotePackInfoPath, remotePackInfoPath, true);
+            log.error("upload new pack info error, rollback",e);
+        }
 
-        if (remoteStorage.exists(oldRemotePackInfoPath)){
+        if (remoteStorage.exists(oldRemotePackInfoPath)) {
             // 删除旧 pack files
             String oldPackInfoStr = remoteStorage.readFullToString(oldRemotePackInfoPath);
             PackInfo oldPackInfo = JsonUtils.readValue(oldPackInfoStr, PackInfo.class);
-            if (oldPackInfo != null){
+            if (oldPackInfo != null) {
                 for (PackInfo.Item item : oldPackInfo.getItems()) {
-                    if (newPackFileNames.contains(item.getName())){
+                    if (newPackFileNames.contains(item.getName())) {
                         continue;
                     }
                     remoteStorage.delete(PathUtils.concat("objects", "pack", item.getName()));

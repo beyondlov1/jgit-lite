@@ -5,9 +5,20 @@ import org.apache.commons.io.filefilter.IOFileFilter;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 
 public class FileUtil {
+
+    public static void move(File source, File target) throws IOException {
+        Files.move(source.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+    }
+
+    public static void move(String source, String target) throws IOException {
+        Files.move(new File(source).toPath(), new File(target).toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+    }
 
     public static Collection<File> listFilesAndDirsWithoutNameOf(String rootPath,String... excludeNames){
         Set<String> excludeNameSet = new HashSet<>(Arrays.asList(excludeNames));

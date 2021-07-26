@@ -1,9 +1,14 @@
 package com.beyond.jgit.object;
 
 
+import com.beyond.jgit.pack.PackInfo;
+import com.beyond.jgit.pack.PackReader;
 import com.beyond.jgit.util.ObjectUtils;
+import com.beyond.jgit.util.PackUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static com.beyond.jgit.util.ObjectUtils.EMPTY_HASH;
 import static com.beyond.jgit.util.ObjectUtils.hexToByteArray;
@@ -22,11 +27,27 @@ public class ObjectManager {
     }
 
     public ObjectEntity read(String objectId) throws IOException {
-        if (objectId.equals(EMPTY_HASH)){
+        if (objectId.equals(EMPTY_HASH)) {
             return ObjectEntity.EMPTY;
         }
-        byte[] bytes = objectDb.read(objectId);
-        return ObjectEntity.parseFrom(bytes);
+        if (objectDb.existsInLoose(objectId)) {
+            byte[] bytes = objectDb.read(objectId);
+            return ObjectEntity.parseFrom(bytes);
+        }
+
+        String objectsDir = objectDb.getObjectsDir();
+        PackInfo packInfo = PackUtils.readPackInfo(objectsDir);
+        if (packInfo != null) {
+            List<PackReader.PackPair> packPairs = new ArrayList<>();
+            for (PackInfo.Item item : packInfo.getItems()) {
+                packPairs.add(PackUtils.getPackPair(objectsDir, item.getName()));
+            }
+            if (objectDb.existsInPack(objectId, packPairs)) {
+                return PackReader.readObject(objectId, packPairs);
+            }
+        }
+
+        throw new RuntimeException("object " + objectId + " not exists");
     }
 
     public boolean exists(String objectId) throws IOException {
@@ -42,12 +63,12 @@ public class ObjectManager {
         String entryPre2 = "100644 no.txt\0";
         byte[] bytes2 = hexToByteArray("b6fc4c620b67d95f953a5c1c1230aaab5db5a1b0");
         int dataLength = entryPre2.getBytes().length + bytes2.length;
-        String treeHead = "tree " +dataLength + "\0" ;
-        byte[] bytes = new byte[dataLength+treeHead.getBytes().length];
+        String treeHead = "tree " + dataLength + "\0";
+        byte[] bytes = new byte[dataLength + treeHead.getBytes().length];
 
         System.arraycopy(treeHead.getBytes(), 0, bytes, 0, treeHead.getBytes().length);
         System.arraycopy(entryPre2.getBytes(), 0, bytes, treeHead.getBytes().length, entryPre2.getBytes().length);
-        System.arraycopy(bytes2, 0, bytes, treeHead.getBytes().length+entryPre2.getBytes().length, bytes2.length);
+        System.arraycopy(bytes2, 0, bytes, treeHead.getBytes().length + entryPre2.getBytes().length, bytes2.length);
 
         String s = ObjectUtils.sha1hash(bytes);
         System.out.println(s);
@@ -61,7 +82,6 @@ public class ObjectManager {
 //        System.out.println(new String(objectEntity1.getData()));
 //        System.out.println(objectEntity1.getType());
     }
-
 
 
 }
