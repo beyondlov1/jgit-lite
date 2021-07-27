@@ -288,6 +288,9 @@ public class GitLite {
         File remoteHeadFile = new File(PathUtils.concat(config.getRefsRemotesDir(), remoteName, "master"));
         remoteStorage.download(PathUtils.concat("refs", "remotes", remoteName, "master"), remoteHeadFile);
 
+        // clone packs
+        fetchPacks(remoteName);
+
         // 根据 remote head 判断需要下载那些objects
         String webRemoteLatestCommitObjectId = findRemoteCommitObjectId(remoteName);
         CommitChainItem chainHead = getRemoteCommitChainHead(webRemoteLatestCommitObjectId, null, remoteStorage);
@@ -412,7 +415,9 @@ public class GitLite {
         if (packInfo!=null){
             for (PackInfo.Item item : packInfo.getItems()) {
                 String remotePackPath = PathUtils.concat("objects", "pack", item.getName());
-                remoteStorage.download(remotePackPath, new File(config.getObjectPackDir(),item.getName()));
+                String localPackPath = PathUtils.concat(config.getObjectPackDir(), item.getName());
+                remoteStorage.download(remotePackPath, new File(localPackPath));
+                remoteStorage.download(PackUtils.getIndexPath(remotePackPath), new File(PackUtils.getIndexPath(localPackPath)));
             }
         }
 
@@ -434,8 +439,9 @@ public class GitLite {
         if (Objects.equals(newerCommitObjectId, EMPTY_OBJECT_ID)) {
             return;
         }
-        File objectFile = ObjectUtils.getObjectFile(config.getObjectsDir(), newerCommitObjectId);
-        if (!objectFile.exists()) {
+
+        if (!objectManager.exists(newerCommitObjectId)) {
+            File objectFile = ObjectUtils.getObjectFile(config.getObjectsDir(), newerCommitObjectId);
             FileUtils.forceMkdirParent(objectFile);
             remoteStorage.download(PathUtils.concat("objects", ObjectUtils.path(newerCommitObjectId)), objectFile);
         }
@@ -863,9 +869,9 @@ public class GitLite {
         if (!remoteStorage.exists(PathUtils.concat("refs", "remotes", remoteName))) {
             remoteStorage.mkdir("");
             remoteStorage.mkdir("objects");
-            remoteStorage.mkdir("logs");
-            remoteStorage.mkdir(PathUtils.concat("logs", "remotes"));
-            remoteStorage.mkdir(PathUtils.concat("logs", "remotes", remoteName));
+//            remoteStorage.mkdir("logs");
+//            remoteStorage.mkdir(PathUtils.concat("logs", "remotes"));
+//            remoteStorage.mkdir(PathUtils.concat("logs", "remotes", remoteName));
             remoteStorage.mkdir("refs");
             remoteStorage.mkdir(PathUtils.concat("refs", "remotes"));
             remoteStorage.mkdir(PathUtils.concat("refs", "remotes", remoteName));
@@ -1069,12 +1075,35 @@ public class GitLite {
 
     }
 
+    /**
+     * 除upload部分，其他与push方法相同
+     */
     public void packAndPush(String remoteName) throws IOException {
         repack();
         Storage remoteStorage = remoteStorageMap.get(remoteName);
         if (remoteStorage == null) {
             throw new RuntimeException("remoteStorage is not exist");
         }
+
+        LogManager remoteLogManager = remoteLogManagerMap.get(remoteName);
+        if (remoteLogManager == null) {
+            throw new RuntimeException("remoteLogManager is not exist");
+        }
+
+        initRemoteDirs(remoteName);
+
+        // fetch哪些就push哪些
+        // 1. 根据commit链, 将所有提交导致的变化objectId全部上传
+        String localCommitObjectId = findLocalCommitObjectId();
+        String remoteCommitObjectId = findRemoteCommitObjectId(remoteName);
+
+        if (Objects.equals(localCommitObjectId, remoteCommitObjectId)) {
+            log.info("nothing changed, no push");
+            return;
+        }
+
+
+        // upload packs
         File packsInfoFile = new File(PathUtils.concat(config.getObjectInfoDir(), "packs"));
         if (!packsInfoFile.exists()) {
             push(remoteName);
@@ -1140,6 +1169,50 @@ public class GitLite {
         }
 
 
+
+        // 3. 写remote日志(异常回退)
+        LogItem localCommitLogItem = localLogManager.getLogs().stream().filter(x -> Objects.equals(x.getCommitObjectId(), localCommitObjectId)).findFirst().orElse(null);
+        if (localCommitLogItem == null) {
+            throw new RuntimeException("log file error, maybe missing some commit");
+        }
+        List<LogItem> remoteLogs = remoteLogManager.getLogs();
+        LogItem remoteLogItem = new LogItem();
+        if (remoteLogs == null) {
+            remoteLogItem.setParentCommitObjectId(EMPTY_OBJECT_ID);
+        } else {
+            remoteLogItem.setParentCommitObjectId(remoteCommitObjectId);
+        }
+        remoteLogItem.setCommitObjectId(localCommitLogItem.getCommitObjectId());
+        remoteLogItem.setCommitterName(localCommitLogItem.getCommitterName());
+        remoteLogItem.setCommitterEmail(localCommitLogItem.getCommitterEmail());
+        remoteLogItem.setMessage("push");
+        remoteLogItem.setMtime(System.currentTimeMillis());
+
+        String currRemoteRefsDir = PathUtils.concat(config.getRefsRemotesDir(), remoteName);
+        File remoteHeadFile = new File(currRemoteRefsDir, "master");
+        File remoteHeadLockFile = new File(remoteHeadFile.getAbsolutePath() + ".lock");
+
+        try {
+            remoteLogManager.lock();
+            remoteLogManager.appendToLock(remoteLogItem);
+
+            // 5. 修改本地remote的head(异常回退)
+            FileUtils.copyFile(new File(PathUtils.concat(config.getRefsHeadsDir(), "master")), remoteHeadLockFile);
+            FileUtils.writeStringToFile(remoteHeadLockFile, localCommitObjectId, StandardCharsets.UTF_8);
+
+            // 6. 上传remote的head
+            //  upload remote head lock to remote head
+            remoteStorage.upload(new File(PathUtils.concat(config.getRefsHeadsDir(), "master")),
+                    PathUtils.concat("refs", "remotes", remoteName, "master"));
+
+            Files.move(remoteHeadLockFile.toPath(), remoteHeadFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            remoteLogManager.commit();
+        } catch (Exception e) {
+            log.error("上传head失败", e);
+            FileUtils.deleteQuietly(remoteHeadLockFile);
+            remoteLogManager.rollback();
+            throw e;
+        }
     }
 
     /**
