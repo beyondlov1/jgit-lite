@@ -25,6 +25,7 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
@@ -134,11 +135,11 @@ public class GitLite {
         indexManager.save(index);
     }
 
-    public String commit(String message) throws IOException {
-        return commit(IndexManager.parseIndex(config.getIndexPath()), message);
+    public String commit(String message, String...parents) throws IOException {
+        return commit(IndexManager.parseIndex(config.getIndexPath()), message,parents);
     }
 
-    public String commit(Index index, String message) throws IOException {
+    public String commit(Index index, String message, String...parents) throws IOException {
 
         Index committedIndex = Index.generateFromCommit(findLocalCommitObjectId(), objectManager);
         IndexDiffResult committedDiff = IndexDiffer.diff(index, committedIndex);
@@ -148,7 +149,7 @@ public class GitLite {
         }
 
         ObjectEntity tree = addTreeFromIndex(index);
-        ObjectEntity commit = addCommitObject(tree, message);
+        ObjectEntity commit = addCommitObject(tree, message,parents);
         File headRefFile = getHeadRefFile();
         FileUtils.writeStringToFile(headRefFile, ObjectUtils.sha1hash(commit), StandardCharsets.UTF_8);
 
@@ -237,7 +238,7 @@ public class GitLite {
         walkUp(new FileNode(parentFile), rootNode, nodes);
     }
 
-    private ObjectEntity addCommitObject(ObjectEntity tree, String message) throws IOException {
+    private ObjectEntity addCommitObject(ObjectEntity tree, String message, String... parents) throws IOException {
         CommitObjectData commitObjectData = new CommitObjectData();
         commitObjectData.setTree(ObjectUtils.sha1hash(tree));
         commitObjectData.setCommitTime(System.currentTimeMillis());
@@ -247,13 +248,18 @@ public class GitLite {
         commitObjectData.setCommitter(user);
         commitObjectData.setAuthor(user);
         commitObjectData.setMessage(message);
-        LogItem lastLogItem = localLogManager.getLastLogItem();
-        if (lastLogItem == null) {
-            commitObjectData.addParent(EMPTY_OBJECT_ID);
-        } else {
-            commitObjectData.addParent(lastLogItem.getCommitObjectId());
+        if (ArrayUtils.isEmpty(parents)){
+            String localCommitObjectId = findLocalCommitObjectId();
+            if (localCommitObjectId == null){
+                commitObjectData.addParent(EMPTY_OBJECT_ID);
+            }else {
+                commitObjectData.addParent(localCommitObjectId);
+            }
+        }else {
+            for (String parent : parents) {
+                commitObjectData.addParent(parent);
+            }
         }
-
         ObjectEntity commitObjectEntity = new ObjectEntity();
         commitObjectEntity.setType(ObjectEntity.Type.commit);
         commitObjectEntity.setData(commitObjectData.toBytes());
@@ -294,7 +300,7 @@ public class GitLite {
         // 根据 remote head 判断需要下载那些objects
         String webRemoteLatestCommitObjectId = findRemoteCommitObjectId(remoteName);
         CommitChainItem chainHead = getRemoteCommitChainHead(webRemoteLatestCommitObjectId, null, remoteStorage);
-        chainHead.walk(commitChainItem -> {
+        chainHead.dfsWalk(commitChainItem -> {
             // olderCommitObjectId的parents是空的， 这里不需要再重新下载一次olderCommitObjectId
             if (CollectionUtils.isNotEmpty(commitChainItem.getParents())) {
                 downloadByObjectIdRecursive(commitChainItem.getCommitObjectId(), remoteStorage);
@@ -387,7 +393,7 @@ public class GitLite {
         }
         // 去remoteLog, remoteLog只在本地存,不上传. 改用commitObject中的parent获取提交链
         CommitChainItem chainHead = getRemoteCommitChainHead(remoteLockCommitObjectId, remoteCommitObjectId, remoteStorage);
-        chainHead.walk(commitChainItem -> {
+        chainHead.dfsWalk(commitChainItem -> {
             // olderCommitObjectId的parents是空的， 这里不需要再重新下载一次olderCommitObjectId
             if (CollectionUtils.isNotEmpty(commitChainItem.getParents())) {
                 downloadByObjectIdRecursive(commitChainItem.getCommitObjectId(), remoteStorage);
@@ -524,6 +530,13 @@ public class GitLite {
         String localCommitObjectId = findLocalCommitObjectId();
         String remoteCommitObjectId = findRemoteCommitObjectId(remoteName);
 
+        // region debug
+        CommitChainItem localCommitChainRoot = getCommitChainHead(localCommitObjectId, EMPTY_OBJECT_ID, objectManager);
+        CommitChainItem remoteCommitChainRoot = getCommitChainHead(remoteCommitObjectId, EMPTY_OBJECT_ID, objectManager);
+        localCommitChainRoot.print();
+        remoteCommitChainRoot.print();
+        // endregion
+
         if (StringUtils.equals(localCommitObjectId, remoteCommitObjectId)) {
             log.info("nothing changed, no merge");
             return;
@@ -553,6 +566,9 @@ public class GitLite {
                         localCommitObjectIds.add(localParent);
                         newLocalCommitChainItemLazys.add(new CommitChainItemLazy(localParent, objectManager));
                     }
+                    if (intersectionCommitObjectId != null){
+                        break;
+                    }
                 }
                 localCommitChainItemLazys = newLocalCommitChainItemLazys;
 
@@ -565,10 +581,17 @@ public class GitLite {
                             break;
                         }
                         remoteCommitObjectIds.add(remoteParent);
-                        newLocalCommitChainItemLazys.add(new CommitChainItemLazy(remoteParent, objectManager));
+                        newRemoteCommitChainItemLazys.add(new CommitChainItemLazy(remoteParent, objectManager));
+                    }
+                    if (intersectionCommitObjectId != null){
+                        break;
                     }
                 }
                 remoteCommitChainItemLazys = newRemoteCommitChainItemLazys;
+
+                if (intersectionCommitObjectId != null){
+                    break;
+                }
 
                 if (CollectionUtils.isEmpty(localCommitChainItemLazys) && CollectionUtils.isEmpty(remoteCommitChainItemLazys)) {
                     break;
@@ -637,8 +660,11 @@ public class GitLite {
 
         indexManager.save(committedHeadIndex);
 
-        commit("merge");
+        // todo : 如果本地没有变化，只有远程变化, 则采用rebase
 
+        commit("merge",localCommitObjectId, remoteCommitObjectId);
+
+        // todo: merge之后自动push
     }
 
 
@@ -682,6 +708,8 @@ public class GitLite {
     }
 
     public void push(String remoteName) throws IOException {
+        // todo: 检查远程的是否与本地冲突
+
         Storage remoteStorage = remoteStorageMap.get(remoteName);
         if (remoteStorage == null) {
             throw new RuntimeException("remoteStorage is not exist");
@@ -869,9 +897,8 @@ public class GitLite {
         if (!remoteStorage.exists(PathUtils.concat("refs", "remotes", remoteName))) {
             remoteStorage.mkdir("");
             remoteStorage.mkdir("objects");
-//            remoteStorage.mkdir("logs");
-//            remoteStorage.mkdir(PathUtils.concat("logs", "remotes"));
-//            remoteStorage.mkdir(PathUtils.concat("logs", "remotes", remoteName));
+            remoteStorage.mkdir(PathUtils.concat("objects","pack"));
+            remoteStorage.mkdir(PathUtils.concat("objects","info"));
             remoteStorage.mkdir("refs");
             remoteStorage.mkdir(PathUtils.concat("refs", "remotes"));
             remoteStorage.mkdir(PathUtils.concat("refs", "remotes", remoteName));

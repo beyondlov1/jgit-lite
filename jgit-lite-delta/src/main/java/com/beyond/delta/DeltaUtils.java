@@ -1,20 +1,13 @@
 package com.beyond.delta;
 
-import com.beyond.delta.entity.CopyRangeDelta;
-import com.beyond.delta.entity.Delta;
 import com.beyond.delta.entity.Formatter;
-import com.beyond.delta.entity.InsertLiterDelta;
-import com.beyond.delta.entity.OriginChunk;
-import com.beyond.delta.entity.Range;
-import com.beyond.delta.entity.Slice;
+import com.beyond.delta.entity.*;
 import com.google.common.hash.Hashing;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ComparatorUtils;
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -264,151 +257,159 @@ public class DeltaUtils {
         return formatter.parse(deltasBytes, offset, len);
     }
 
-    public static void main(String[] args) throws IOException {
-//        byte[] target = "abcdefghigklmnopqrstuvwxyz789defghigklmiidfad".getBytes(StandardCharsets.UTF_8);
-//        byte[] base = "e34abcdefghigkl123mnopqrstuvwxyz".getBytes(StandardCharsets.UTF_8);
-//        byte[] target = "广域网（英语：Wide Area Network，缩写为 WAN），又dfasdfag打法称广域ssccdggeaswe网、外网、公网。是连接不同地区局域网或wosidfjao城域网计算机通信的远程网。通常跨接很大的物我们都是理范围，所覆盖的里，它能连接多个地区、城市和国家，或横跨几个洲并能提供远距离通信，形成国际性的远程网络。广域网并".getBytes(StandardCharsets.UTF_8);
-//        byte[] base = "广域网（英语：Wide Area Network，缩写为 WAN），又称广域网、外网、公网。是连接不同地区局域网或城域网计算机通信的远程网。通常跨接很大的物理范围，所覆盖的范围从几十公里到几千公里，它能连接多个地区、城市和国家，或横跨几个洲并能提供远距离通信，形成国际性的远程网络。广域网并".getBytes(StandardCharsets.UTF_8);
-        byte[] target = ("~运算符是对运算数的每一位按位取反。\n" +
-                "下表列出了位运算符的基本运算,假设整数变量A的值为60和变量B的值为13：\n" +
-                "\n" +
-                "\n" +
-                "\n" +
-                "操作符\n" +
-                "描述\n" +
-                "例子\n" +
-                "\n" +
-                "\n" +
-                "\n" +
-                "\n" +
-                "&\n" +
-                "如果相对应位都是1，则结果为1，否则为0\n" +
-                "A & B得到 12，即0000 1100\n" +
-                "\n" +
-                "\n" +
-                "|\n" +
-                "如果相对应位都是0，则结果为0，否则为1\n" +
-                "A | B得到61adsf我们发达佛教排毒分ijdfpjq的你的积分打飞机扩大 计分卡满，即 0011 1101\n" +
-                "\n" +
-                "\n" +
-                "^\n" +
-                "如果相对应位值相同，则结果为0，否则为1\n" +
-                "A ^ B得到 49，即 0011 0001\n" +
-                "\n" +
-                "\n1\n" +
-                "\n" +
-                "\n" +
-                "<<\n" +
-                "按位左移运算符。左操作数按位左移右操作数指定的位数。（低位补零）\n" +
-                "A << 2得到 240，即 1111 0000\n" +
-                "\n" +
-                "\n" +
-                ">>\n" +
-                "“有符号”按位右移运算符。打法多个按打法的。该操作符使用 “符号扩展”：若符号为正，则高位插入 0；若符号为负，则高位插入 1。\n" +
-                "A >> 2得到15即 1111\n" +
-                "\n" +
-                "\n" +
-                ">>>\n" +
-                "“无符号”按位右移补零操作符。左操速度发达发达爱吃地方额外而非作数的值按右操作数指定的位数右移，移动得到的空位以零填充。该操作符使用 “零扩展”，无论正负，都在高位插入 0。\n" +
-                "A >>> 2得到 15，即 0000 1111\n" +
-                "\n" +
-                "\n" +
-                "\n" +
-                "按位操作符\n" +
-                "\n" +
-                "特别注意：使用按位操作符时要注意，相\n" +
-                "\n" +
-                "著作权归作者所有。\n" +
-                "商业转载请联系作者获得授权，非商业转载请注明出处。\n" +
-                "作者：Nemo\n" +
-                "链接：https://www.cnblogs.com/blknemo/ \n" +
-                "来源：博短短的客园额哦哦v\n" +
-                "\n").getBytes(StandardCharsets.UTF_8);
-        byte[] base = ("~运算符是对运算数的每一位按位取反。\n" +
-                "下表列出了位运算符的基本运算,假设整数变量A的值为60和变量B的值为13：\n" +
-                "\n" +
-                "\n" +
-                "\n" +
-                "操作符\n" +
-                "描述\n" +
-                "例子\n" +
-                "\n" +
-                "\n" +
-                "\n" +
-                "\n" +
-                "&\n" +
-                "如果相对应位都是1，则结果为1，否则为0\n" +
-                "A & B得到 12，即0000 1100\n" +
-                "\n" +
-                "\n" +
-                "|\n" +
-                "如果相对应位都是0，则结果为0，否则为1\n" +
-                "A | B得到61，即 0011 1101\n" +
-                "\n" +
-                "\n" +
-                "^\n" +
-                "如果相对应位值相同，则结果为0，否则为1\n" +
-                "A ^ B得到 49，即 0011 0001\n" +
-                "\n" +
-                "\n" +
-                "~\n" +
-                "按位取反运算符翻转操作数的每一位，即0变成1，1变成0。\n" +
-                "~A得到 -61，即1100 0011\n" +
-                "\n" +
-                "\n" +
-                "<<\n" +
-                "按位左移运算符。左操作数按位左移右操作数指定的位数。（低位补零）\n" +
-                "A << 2得到 240，即 1111 0000\n" +
-                "\n" +
-                "\n" +
-                ">>\n" +
-                "“有符号”按位右移运算符。左操作数按位右移右操作数指定的位数。该操作符使用 “符号扩展”：若符号为正，则高位插入 0；若符号为负，则高位插入 1。\n" +
-                "A >> 2得到15即 1111\n" +
-                "\n" +
-                "\n" +
-                ">>>\n" +
-                "“无符号”按位右移补零操作符。左操作数的值按右操作数指定的位数右移，移动得到的空位以零填充。该操作符使用 “零扩展”，无论正负，都在高位插入 0。\n" +
-                "A >>> 2得到 15，即 0000 1111\n" +
-                "\n" +
-                "\n" +
-                "\n" +
-                "按位操作符\n" +
-                "\n" +
-                "特别注意：使用按位操作符时要注意，相\n" +
-                "\n" +
-                "著作权归作者所有。\n" +
-                "商业转载请联系作者获得授权，非商业转载请注明出处。\n" +
-                "作者：Nemo\n" +
-                "链接：https://www.cnblogs.com/blknemo/ \n" +
-                "来源：博客园\n" +
-                "\n").getBytes(StandardCharsets.UTF_8);
-
-        List<Delta> deltas = makeDeltas(target, base);
-        System.out.println(pretty(deltas, base));
-        byte[] deltasFormatted = format(deltas);
-        System.out.println(Arrays.toString(deltasFormatted));
-        List<Delta> parsedDeltas = parse(deltasFormatted);
-        byte[] targetApplied = applyDeltas(deltas, base);
-
-        System.out.println(pretty(parsedDeltas, base).equals(pretty(deltas, base)));
-        System.out.println(Arrays.equals(targetApplied, target));
-
-        System.out.println(base.length);
-        System.out.println(target.length);
-        System.out.println(deltasFormatted.length);
-
-
-        byte[] base1 = "ssscccd".getBytes();
-        byte[] target1 = ("ssscccdcgwrwte\n" +
-                "dfadfda\n" +
-                "cvdfgdsg").getBytes();
-
-        List<Delta> deltas1 = makeDeltas(target1, base1);
-        System.out.println(pretty(deltas1, base));
-
-        System.out.println(base1.length);
-        System.out.println(target1.length);
-        System.out.println(format(deltas1).length);
-
+    public static void main(String[] args) {
+        makeDeltas( ("heldfadfadfda\n" +
+                "-dfdaf\n" +
+                "- cafdfdfdsf的发放dfadfdfadfaddfadfsssssssssssdefsssdfadfccccxxxbbbcdddd踩刹车初次ccccbbbcccccccdererererssss").getBytes(),("heldfadfadfda\n" +
+                "-dfdaf\n" +
+                "- dddd").getBytes());
     }
+
+//    public static void main(String[] args) throws IOException {
+////        byte[] target = "abcdefghigklmnopqrstuvwxyz789defghigklmiidfad".getBytes(StandardCharsets.UTF_8);
+////        byte[] base = "e34abcdefghigkl123mnopqrstuvwxyz".getBytes(StandardCharsets.UTF_8);
+////        byte[] target = "广域网（英语：Wide Area Network，缩写为 WAN），又dfasdfag打法称广域ssccdggeaswe网、外网、公网。是连接不同地区局域网或wosidfjao城域网计算机通信的远程网。通常跨接很大的物我们都是理范围，所覆盖的里，它能连接多个地区、城市和国家，或横跨几个洲并能提供远距离通信，形成国际性的远程网络。广域网并".getBytes(StandardCharsets.UTF_8);
+////        byte[] base = "广域网（英语：Wide Area Network，缩写为 WAN），又称广域网、外网、公网。是连接不同地区局域网或城域网计算机通信的远程网。通常跨接很大的物理范围，所覆盖的范围从几十公里到几千公里，它能连接多个地区、城市和国家，或横跨几个洲并能提供远距离通信，形成国际性的远程网络。广域网并".getBytes(StandardCharsets.UTF_8);
+//        byte[] target = ("~运算符是对运算数的每一位按位取反。\n" +
+//                "下表列出了位运算符的基本运算,假设整数变量A的值为60和变量B的值为13：\n" +
+//                "\n" +
+//                "\n" +
+//                "\n" +
+//                "操作符\n" +
+//                "描述\n" +
+//                "例子\n" +
+//                "\n" +
+//                "\n" +
+//                "\n" +
+//                "\n" +
+//                "&\n" +
+//                "如果相对应位都是1，则结果为1，否则为0\n" +
+//                "A & B得到 12，即0000 1100\n" +
+//                "\n" +
+//                "\n" +
+//                "|\n" +
+//                "如果相对应位都是0，则结果为0，否则为1\n" +
+//                "A | B得到61adsf我们发达佛教排毒分ijdfpjq的你的积分打飞机扩大 计分卡满，即 0011 1101\n" +
+//                "\n" +
+//                "\n" +
+//                "^\n" +
+//                "如果相对应位值相同，则结果为0，否则为1\n" +
+//                "A ^ B得到 49，即 0011 0001\n" +
+//                "\n" +
+//                "\n1\n" +
+//                "\n" +
+//                "\n" +
+//                "<<\n" +
+//                "按位左移运算符。左操作数按位左移右操作数指定的位数。（低位补零）\n" +
+//                "A << 2得到 240，即 1111 0000\n" +
+//                "\n" +
+//                "\n" +
+//                ">>\n" +
+//                "“有符号”按位右移运算符。打法多个按打法的。该操作符使用 “符号扩展”：若符号为正，则高位插入 0；若符号为负，则高位插入 1。\n" +
+//                "A >> 2得到15即 1111\n" +
+//                "\n" +
+//                "\n" +
+//                ">>>\n" +
+//                "“无符号”按位右移补零操作符。左操速度发达发达爱吃地方额外而非作数的值按右操作数指定的位数右移，移动得到的空位以零填充。该操作符使用 “零扩展”，无论正负，都在高位插入 0。\n" +
+//                "A >>> 2得到 15，即 0000 1111\n" +
+//                "\n" +
+//                "\n" +
+//                "\n" +
+//                "按位操作符\n" +
+//                "\n" +
+//                "特别注意：使用按位操作符时要注意，相\n" +
+//                "\n" +
+//                "著作权归作者所有。\n" +
+//                "商业转载请联系作者获得授权，非商业转载请注明出处。\n" +
+//                "作者：Nemo\n" +
+//                "链接：https://www.cnblogs.com/blknemo/ \n" +
+//                "来源：博短短的客园额哦哦v\n" +
+//                "\n").getBytes(StandardCharsets.UTF_8);
+//        byte[] base = ("~运算符是对运算数的每一位按位取反。\n" +
+//                "下表列出了位运算符的基本运算,假设整数变量A的值为60和变量B的值为13：\n" +
+//                "\n" +
+//                "\n" +
+//                "\n" +
+//                "操作符\n" +
+//                "描述\n" +
+//                "例子\n" +
+//                "\n" +
+//                "\n" +
+//                "\n" +
+//                "\n" +
+//                "&\n" +
+//                "如果相对应位都是1，则结果为1，否则为0\n" +
+//                "A & B得到 12，即0000 1100\n" +
+//                "\n" +
+//                "\n" +
+//                "|\n" +
+//                "如果相对应位都是0，则结果为0，否则为1\n" +
+//                "A | B得到61，即 0011 1101\n" +
+//                "\n" +
+//                "\n" +
+//                "^\n" +
+//                "如果相对应位值相同，则结果为0，否则为1\n" +
+//                "A ^ B得到 49，即 0011 0001\n" +
+//                "\n" +
+//                "\n" +
+//                "~\n" +
+//                "按位取反运算符翻转操作数的每一位，即0变成1，1变成0。\n" +
+//                "~A得到 -61，即1100 0011\n" +
+//                "\n" +
+//                "\n" +
+//                "<<\n" +
+//                "按位左移运算符。左操作数按位左移右操作数指定的位数。（低位补零）\n" +
+//                "A << 2得到 240，即 1111 0000\n" +
+//                "\n" +
+//                "\n" +
+//                ">>\n" +
+//                "“有符号”按位右移运算符。左操作数按位右移右操作数指定的位数。该操作符使用 “符号扩展”：若符号为正，则高位插入 0；若符号为负，则高位插入 1。\n" +
+//                "A >> 2得到15即 1111\n" +
+//                "\n" +
+//                "\n" +
+//                ">>>\n" +
+//                "“无符号”按位右移补零操作符。左操作数的值按右操作数指定的位数右移，移动得到的空位以零填充。该操作符使用 “零扩展”，无论正负，都在高位插入 0。\n" +
+//                "A >>> 2得到 15，即 0000 1111\n" +
+//                "\n" +
+//                "\n" +
+//                "\n" +
+//                "按位操作符\n" +
+//                "\n" +
+//                "特别注意：使用按位操作符时要注意，相\n" +
+//                "\n" +
+//                "著作权归作者所有。\n" +
+//                "商业转载请联系作者获得授权，非商业转载请注明出处。\n" +
+//                "作者：Nemo\n" +
+//                "链接：https://www.cnblogs.com/blknemo/ \n" +
+//                "来源：博客园\n" +
+//                "\n").getBytes(StandardCharsets.UTF_8);
+//
+//        List<Delta> deltas = makeDeltas(target, base);
+//        System.out.println(pretty(deltas, base));
+//        byte[] deltasFormatted = format(deltas);
+//        System.out.println(Arrays.toString(deltasFormatted));
+//        List<Delta> parsedDeltas = parse(deltasFormatted);
+//        byte[] targetApplied = applyDeltas(deltas, base);
+//
+//        System.out.println(pretty(parsedDeltas, base).equals(pretty(deltas, base)));
+//        System.out.println(Arrays.equals(targetApplied, target));
+//
+//        System.out.println(base.length);
+//        System.out.println(target.length);
+//        System.out.println(deltasFormatted.length);
+//
+//
+//        byte[] base1 = "ssscccd".getBytes();
+//        byte[] target1 = ("ssscccdcgwrwte\n" +
+//                "dfadfda\n" +
+//                "cvdfgdsg").getBytes();
+//
+//        List<Delta> deltas1 = makeDeltas(target1, base1);
+//        System.out.println(pretty(deltas1, base));
+//
+//        System.out.println(base1.length);
+//        System.out.println(target1.length);
+//        System.out.println(format(deltas1).length);
+//
+//    }
 }

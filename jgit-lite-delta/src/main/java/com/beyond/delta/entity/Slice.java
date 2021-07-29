@@ -54,10 +54,15 @@ public class Slice {
 
         /**
          * 防止与上一个出现交叉
+         * 从后往前，until
          */
         public Range mergeTargetRange(int until) {
             if (pre == null) {
-                return new Range(this.targetSlice.getStart(), this.targetSlice.getEnd());
+                if (this.targetSlice.getStart() < until) {
+                    return new Range(until, this.targetSlice.getEnd());
+                }else {
+                    return new Range(this.targetSlice.getStart(), this.targetSlice.getEnd());
+                }
             }
             if (pre.getTargetSlice().getStart() < until) {
                 return new Range(this.targetSlice.getStart(), this.targetSlice.getEnd());
