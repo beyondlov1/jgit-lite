@@ -47,7 +47,6 @@ public class PackFile {
         }
 
         Collections.reverse(packFiles);
-        // todo: 切换文件时的block类型变化
         return packFiles;
     }
 

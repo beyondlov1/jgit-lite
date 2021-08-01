@@ -8,6 +8,7 @@ import org.apache.commons.lang3.StringUtils;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 public class PackUtils {
     public static String getIndexPath(String packPath) {
@@ -28,5 +29,13 @@ public class PackUtils {
         String packPath = PathUtils.concat(objectsDir, "pack", name);
         String packIndexPath = getIndexPath(packPath);
         return new PackReader.PackPair(new File(packIndexPath), new File(packPath));
+    }
+
+    public static void checkPackIndexCheckSum(byte[] indexBytes) throws IOException {
+        byte[] computedChecksum = FormatUtils.checksum(indexBytes, 0, indexBytes.length - 20);
+        byte[] checksumInFile = BytesUtils.collectByLength(indexBytes, indexBytes.length - 20, 20);
+        if (!Arrays.equals(computedChecksum, checksumInFile)){
+            throw new RuntimeException("idx checksum fail");
+        }
     }
 }

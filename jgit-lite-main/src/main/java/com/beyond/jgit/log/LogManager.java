@@ -52,7 +52,6 @@ public class LogManager {
         FileUtils.writeStringToFile(new File(logLockPath), JsonUtils.writeValueAsString(logs), StandardCharsets.UTF_8);
     }
 
-    // todo:file lock
     public void appendToLock(String commitObjectId, String committerName, String committerEmail, String message, long commitTime) throws IOException {
         LogItem lastLogItem = getLastLogItem();
         String parentCommitObjectId = EMPTY_OBJECT_ID;

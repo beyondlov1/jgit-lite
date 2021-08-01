@@ -144,7 +144,7 @@ public class GitLite {
         Index committedIndex = Index.generateFromCommit(findLocalCommitObjectId(), objectManager);
         IndexDiffResult committedDiff = IndexDiffer.diff(index, committedIndex);
         if (!committedDiff.isChanged()) {
-            log.info("nothing changed, no commit");
+            log.debug("nothing changed, no commit");
             return "nothing changed";
         }
 
@@ -271,7 +271,6 @@ public class GitLite {
     }
 
 
-    //todo
     public void clone(String remoteName) throws IOException {
         Storage remoteStorage = remoteStorageMap.get(remoteName);
         if (remoteStorage == null) {
@@ -626,7 +625,7 @@ public class GitLite {
         remoteChanged.addAll(remoteDiff.getRemoved());
 
         if (!committedDiff.isChanged() && !remoteDiff.isChanged()) {
-            log.info("nothing changed, no merge");
+            log.debug("nothing changed, no merge");
             return;
         }
 
@@ -660,11 +659,17 @@ public class GitLite {
 
         indexManager.save(committedHeadIndex);
 
-        // todo : 如果本地没有变化，只有远程变化, 则采用rebase
+        if (!committedDiff.isChanged()){
+            // 如果本地没有变化，只有远程变化, 则只改HEAD
+            File headRefFile = getHeadRefFile();
+            FileUtils.writeStringToFile(headRefFile, remoteCommitObjectId, StandardCharsets.UTF_8);
+        }else{
+            log.info("create merge commit");
+            // 如果两个local和remote都有变化则merge
+            commit("merge",localCommitObjectId, remoteCommitObjectId);
+            log.info("merge committed");
+        }
 
-        commit("merge",localCommitObjectId, remoteCommitObjectId);
-
-        // todo: merge之后自动push
     }
 
 
@@ -707,8 +712,14 @@ public class GitLite {
         return StringUtils.trim(FileUtils.readFileToString(file, StandardCharsets.UTF_8));
     }
 
+    /**
+     * 改为使用packAndPush
+     * @param remoteName
+     * @throws IOException
+     */
+    @Deprecated
     public void push(String remoteName) throws IOException {
-        // todo: 检查远程的是否与本地冲突
+        // todo: 检查远程的是否与本地冲突?
 
         Storage remoteStorage = remoteStorageMap.get(remoteName);
         if (remoteStorage == null) {
@@ -909,6 +920,9 @@ public class GitLite {
         repack(100000);
     }
 
+    /**
+     * 打包原则： 根据commitChain分段打包: 最新的提交在最新的pack, 旧的pack随着commit的变多会逐渐稳定，内容也会不变。 只要limit不变，多次打包内容不变
+     */
     public void repack(int limit) throws IOException {
         String localCommitObjectId = findLocalCommitObjectId();
 
@@ -934,7 +948,7 @@ public class GitLite {
                 entries.add(entry);
             }
             // commit
-            log.info("firstCommit:{}", commitPath.get(0).getCommitObjectId());
+            log.debug("firstCommit:{}", commitPath.get(0).getCommitObjectId());
             List<Index.Entry> commitEntry = commitPath.stream().map(x -> {
                 Index.Entry entry = new Index.Entry();
                 entry.setObjectId(x.getCommitObjectId());
@@ -1062,9 +1076,9 @@ public class GitLite {
         // delete packed objectIds
         List<String> objectIds = PackReader.readAllObjectIds(packPairs);
         for (String objectId : objectIds) {
-            // fixme: backup and delete for test
+            log.debug("pending deleting loose object:" + objectId);
+            // no delete for now
 //            objectManager.deleteLooseObject(objectId);
-            log.info("deleting loose object:" + objectId);
         }
 
         // write pack info
@@ -1072,32 +1086,30 @@ public class GitLite {
 
         // region debug
         for (PackFile subPackFile : subPackFiles) {
-            log.info("pack file checksum:" + ObjectUtils.bytesToHex(subPackFile.getTrailer().getChecksum()));
+            log.debug("pack file checksum:" + ObjectUtils.bytesToHex(subPackFile.getTrailer().getChecksum()));
         }
         // endregion
-
-        // todo: 让pack未发生变化的凑到同一个文件
 
         List<ObjectEntity> objectEntities = PackReader.readAllObjects(packPairs);
         for (ObjectEntity objectEntity : objectEntities) {
             if (objectEntity.getType() == ObjectEntity.Type.blob) {
                 BlobObjectData blobObjectData = BlobObjectData.parseFrom(objectEntity.getData());
-                log.info("blob: " + new String(blobObjectData.getData()));
+                log.debug("blob: " + new String(blobObjectData.getData()));
             }
 
             if (objectEntity.getType() == ObjectEntity.Type.tree) {
                 TreeObjectData treeObjectData = TreeObjectData.parseFrom(objectEntity.getData());
-                log.info("tree: " + treeObjectData.getEntries());
+                log.debug("tree: " + treeObjectData.getEntries());
             }
 
             if (objectEntity.getType() == ObjectEntity.Type.commit) {
                 CommitObjectData commitObjectData = CommitObjectData.parseFrom(objectEntity.getData());
-                log.info("commit: " + commitObjectData);
+                log.debug("commit: " + commitObjectData);
             }
         }
 
 
-        // optimization: index -> fileHistoryChain (rename)
+        // todo: optimization: index -> fileHistoryChain (rename)
 
 
     }

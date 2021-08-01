@@ -1,12 +1,11 @@
 package com.beyond.jgit.pack;
 
-import com.beyond.jgit.util.BytesUtils;
 import com.beyond.jgit.util.FormatUtils;
 import com.beyond.jgit.util.ObjectUtils;
+import com.beyond.jgit.util.PackUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -44,8 +43,10 @@ public class PackIndexFormatter {
         return 256 * 4 + items.size() * 24 + 20 + 20;
     }
 
-    public static List<PackIndex.Item> parse(byte[] packIndexBytes) {
-        // todo: checksum
+    public static List<PackIndex.Item> parse(byte[] packIndexBytes) throws IOException {
+        // check checksum
+        PackUtils.checkPackIndexCheckSum(packIndexBytes);
+
         List<PackIndex.Item> items = new ArrayList<>();
         int offset = 256 * 4;
         while (offset < packIndexBytes.length - 20 - 20) {
@@ -60,11 +61,7 @@ public class PackIndexFormatter {
 
     public static int indexForOffset(byte[] indexBytes, String objectId) throws IOException {
         // check checksum
-        byte[] computedChecksum = FormatUtils.checksum(indexBytes, 0, indexBytes.length - 20);
-        byte[] checksumInFile = BytesUtils.collectByLength(indexBytes, indexBytes.length - 20, 20);
-        if (!Arrays.equals(computedChecksum, checksumInFile)){
-            throw new RuntimeException("idx checksum fail");
-        }
+        PackUtils.checkPackIndexCheckSum(indexBytes);
 
         byte[] sha1Bytes = ObjectUtils.hexToByteArray(objectId);
         int fanoutIndex = FormatUtils.readNextUnsignedByte(sha1Bytes, 0);

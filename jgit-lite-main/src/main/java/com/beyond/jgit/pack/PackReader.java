@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 public class PackReader {
 
     public static ObjectEntity readObject(String objectId, List<PackPair> packPairs) throws IOException {
-        log.info("reading from pack, objectId:"+objectId);
+        log.debug("reading from pack, objectId:"+objectId);
         for (PackPair packPair : packPairs) {
             byte[] packIndexBytes = packPair.getPackIndexBytes();
             int offsetInPackFile = PackIndexFormatter.indexForOffset(packIndexBytes, objectId);

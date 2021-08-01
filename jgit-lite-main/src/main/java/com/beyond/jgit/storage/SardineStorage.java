@@ -64,7 +64,7 @@ public class SardineStorage extends AbstractStorage {
         session.start(mappings);
         for (TransportMapping mapping : mappings) {
             if (session.isDone(mapping)){
-                log.info("uploaded, no upload again. if something is wrong, delete session:{}", PathUtils.concat(sessionDir,session.getSessionId()));
+                log.debug("uploaded, no upload again. if something is wrong, delete session:{}", PathUtils.concat(sessionDir,session.getSessionId()));
                 continue;
             }
             upload(new File(mapping.getLocalPath()), mapping.getRemotePath());

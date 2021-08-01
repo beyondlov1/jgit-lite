@@ -15,7 +15,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * todo: test
+ * pack file format
  */
 public class PackFileFormatter {
 
