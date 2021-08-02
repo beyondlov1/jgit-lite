@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 public class FileUtil {
 
@@ -35,6 +37,34 @@ public class FileUtil {
         });
     }
 
+    public static Collection<File> listFilesAndDirs(String rootPath, Predicate<File> filter){
+        return FileUtils.listFilesAndDirs(new File(rootPath), TrueFileFilter.INSTANCE, new IOFileFilter() {
+            @Override
+            public boolean accept(File file) {
+                return filter.test(file);
+            }
+
+            @Override
+            public boolean accept(File dir, String name) {
+                return false;
+            }
+        });
+    }
+
+    public static Collection<File> listChildFilesAndDirs(String rootPath, Predicate<File> filter){
+        return FileUtils.listFilesAndDirs(new File(rootPath), TrueFileFilter.INSTANCE, new IOFileFilter() {
+            @Override
+            public boolean accept(File file) {
+                return filter.test(file);
+            }
+
+            @Override
+            public boolean accept(File dir, String name) {
+                return false;
+            }
+        }).stream().filter(x -> !new File(rootPath).equals(x)).collect(Collectors.toList());
+    }
+
     public static Collection<File> listChildFilesAndDirsWithoutNameOf(String rootPath,String... excludeNames){
         Set<String> excludeNameSet = new HashSet<>(Arrays.asList(excludeNames));
         File rootFile = new File(rootPath);
@@ -54,6 +84,7 @@ public class FileUtil {
     }
 
 
+    @Deprecated
     public static Collection<File> listChildFilesWithoutDirOf(String rootPath,String... excludeNames){
         Set<String> excludeNameSet = new HashSet<>(Arrays.asList(excludeNames));
         File rootFile = new File(rootPath);
@@ -75,9 +106,28 @@ public class FileUtil {
         return newSet;
     }
 
+    public static  Collection<File> listChildOnlyFilesWithoutDirOf(String rootPath, Predicate<File> filter,String... excludeNames) {
+        Collection<File> files = listFilesAndDirsWithoutNameOf(rootPath,excludeNames);
+        Set<File> newSet = new HashSet<>();
+        for (File file : files) {
+            if (file.isFile()){
+                if (filter.test(file)){
+                    newSet.add(file);
+                }
+            }
+        }
+        return newSet;
+    }
+
+
 
     public static void main(String[] args) {
-        Collection<File> files = listChildFilesWithoutDirOf("/home/beyond/Documents/tmp-git-2-local", ".git");
+        Collection<File> files = listChildFilesAndDirs("/home/beyond/Documents/tmp-git-2", x->{
+            if (x.getName().startsWith(".")){
+                return false;
+            }
+            return true;
+        });
         for (File file : files) {
             System.out.println(file.getPath());
         }

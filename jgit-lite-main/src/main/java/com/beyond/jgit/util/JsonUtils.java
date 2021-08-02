@@ -35,6 +35,14 @@ public class JsonUtils {
         }
     }
 
+    public static  <T> void writeTo(T t, File file){
+        try {
+            objectMapper.writeValue(file,t);
+        } catch (IOException e) {
+            log.error("writeValue error", e);
+        }
+    }
+
     public static <T> T readValue(String s, Class<T> tClass) {
         if (StringUtils.isBlank(s)){
             return null;

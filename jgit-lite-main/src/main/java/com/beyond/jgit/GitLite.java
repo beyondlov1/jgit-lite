@@ -96,6 +96,7 @@ public class GitLite {
         if (!file.exists()) {
             FileUtils.write(file, "ref: refs/heads/master", StandardCharsets.UTF_8);
         }
+        config.save();
     }
 
     private void mkdirIfNotExists(String path) {

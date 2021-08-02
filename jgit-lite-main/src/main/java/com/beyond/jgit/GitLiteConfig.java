@@ -1,8 +1,13 @@
 package com.beyond.jgit;
 
+import com.beyond.jgit.util.JsonUtils;
 import com.beyond.jgit.util.PathUtils;
 import lombok.Data;
+import org.apache.commons.io.FileUtils;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,10 +34,10 @@ public class GitLiteConfig {
     private String objectPackDir;
     private String objectInfoDir;
 
-    public static GitLiteConfig simpleConfig(String localDir, String committerName, String committerEmail){
+    public static GitLiteConfig simpleConfig(String localDir, String committerName, String committerEmail) {
         GitLiteConfig config = new GitLiteConfig();
         config.setLocalDir(localDir);
-        config.setGitDir(PathUtils.concat(config.getLocalDir(),".git"));
+        config.setGitDir(PathUtils.concat(config.getLocalDir(), ".git"));
         config.setHeadPath(PathUtils.concat(config.getGitDir(), "HEAD"));
         config.setIndexPath(PathUtils.concat(config.getGitDir(), "index.json"));
         config.setObjectsDir(PathUtils.concat(config.getGitDir(), "objects"));
@@ -42,28 +47,38 @@ public class GitLiteConfig {
         config.setLogsDir(PathUtils.concat(config.getGitDir(), "logs"));
         config.setLogsHeadsDir(PathUtils.concat(config.getLogsDir(), "heads"));
         config.setLogsRemotesDir(PathUtils.concat(config.getLogsDir(), "remotes"));
-        config.setObjectPackDir(PathUtils.concat(config.getObjectsDir(),"pack"));
-        config.setObjectInfoDir(PathUtils.concat(config.getObjectsDir(),"info"));
+        config.setObjectPackDir(PathUtils.concat(config.getObjectsDir(), "pack"));
+        config.setObjectInfoDir(PathUtils.concat(config.getObjectsDir(), "info"));
         config.setCommitterName(committerName);
         config.setCommitterEmail(committerEmail);
         return config;
     }
 
-    public GitLiteConfig addRemote(String remoteName,String remoteUrl,String remoteUserName, String remotePassword){
+    public static GitLiteConfig readFrom(String localDir) throws IOException {
+        return JsonUtils.readValue(new File(PathUtils.concat(localDir, ".git", "config.json")), GitLiteConfig.class);
+    }
+
+    public GitLiteConfig addRemote(String remoteName, String remoteUrl, String remoteUserName, String remotePassword) {
         RemoteConfig remoteConfig = new RemoteConfig(remoteName, remoteUrl, remoteUserName, remotePassword);
-        remoteConfig.setRemoteTmpDir(PathUtils.concat(gitDir,"tmp"));
+        remoteConfig.setRemoteTmpDir(PathUtils.concat(gitDir, "tmp"));
         remoteConfigs.add(remoteConfig);
         return this;
     }
 
-    public GitLiteConfig addRemote(String remoteName,String remoteUrl){
+    public GitLiteConfig addRemote(String remoteName, String remoteUrl) {
         RemoteConfig remoteConfig = new RemoteConfig(remoteName, remoteUrl);
-        remoteConfig.setRemoteTmpDir(PathUtils.concat(gitDir,"tmp","remotes"));
+        remoteConfig.setRemoteTmpDir(PathUtils.concat(gitDir, "tmp", "remotes"));
         remoteConfigs.add(remoteConfig);
         return this;
     }
 
-    public GitLite build(){
+    public GitLiteConfig save() throws IOException {
+        String configJson = JsonUtils.writeValueAsString(this);
+        FileUtils.writeStringToFile(new File(PathUtils.concat(getGitDir(), "config.json")), configJson, StandardCharsets.UTF_8);
+        return this;
+    }
+
+    public GitLite build() {
         return new GitLite(this);
     }
 
