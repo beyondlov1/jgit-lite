@@ -4,12 +4,14 @@ import com.beyond.jgit.util.JsonUtils;
 import com.beyond.jgit.util.PathUtils;
 import lombok.Data;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 
 @Data
@@ -58,18 +60,35 @@ public class GitLiteConfig {
         return JsonUtils.readValue(new File(PathUtils.concat(localDir, ".git", "config.json")), GitLiteConfig.class);
     }
 
-    public GitLiteConfig addRemote(String remoteName, String remoteUrl, String remoteUserName, String remotePassword) {
+    public GitLiteConfig upsertRemote(String remoteName, String remoteUrl, String remoteUserName, String remotePassword) {
         RemoteConfig remoteConfig = new RemoteConfig(remoteName, remoteUrl, remoteUserName, remotePassword);
-        remoteConfig.setRemoteTmpDir(PathUtils.concat(gitDir, "tmp"));
-        remoteConfigs.add(remoteConfig);
+        remoteConfig.setRemoteTmpDir(PathUtils.concat(gitDir, "tmp", "remotes"));
+        this.upsertRemote(remoteConfig);
         return this;
     }
 
-    public GitLiteConfig addRemote(String remoteName, String remoteUrl) {
+    public GitLiteConfig upsertRemote(String remoteName, String remoteUrl) {
         RemoteConfig remoteConfig = new RemoteConfig(remoteName, remoteUrl);
         remoteConfig.setRemoteTmpDir(PathUtils.concat(gitDir, "tmp", "remotes"));
-        remoteConfigs.add(remoteConfig);
+        this.upsertRemote(remoteConfig);
         return this;
+    }
+
+    public boolean contains(RemoteConfig remoteConfig) {
+        return remoteConfigs.stream().map(RemoteConfig::getRemoteName).collect(Collectors.toSet()).contains(remoteConfig.getRemoteName());
+    }
+
+    public void upsertRemote(RemoteConfig remoteConfig) {
+        if (!this.contains(remoteConfig)) {
+            remoteConfigs.add(remoteConfig);
+        } else {
+            remoteConfigs.replaceAll(x -> {
+                if (StringUtils.equals(x.getRemoteName(), remoteConfig.getRemoteName())) {
+                    return remoteConfig;
+                }
+                return x;
+            });
+        }
     }
 
     public GitLiteConfig save() throws IOException {
@@ -90,6 +109,11 @@ public class GitLiteConfig {
         private String remotePassword;
         private String remoteTmpDir;
 
+        @Deprecated
+        public RemoteConfig(){
+
+        }
+
         public RemoteConfig(String remoteName, String remoteUrl) {
             this.remoteName = remoteName;
             this.remoteUrl = remoteUrl;
@@ -98,8 +122,9 @@ public class GitLiteConfig {
         public RemoteConfig(String remoteName, String remoteUrl, String remoteUserName, String remotePassword) {
             this.remoteName = remoteName;
             this.remoteUrl = remoteUrl;
-            this.remoteUserName = remoteUserName;
-            this.remotePassword = remotePassword;
+            this.remoteUserName = StringUtils.trimToNull(remoteUserName);
+            this.remotePassword = StringUtils.trimToNull(remotePassword);
         }
+
     }
 }

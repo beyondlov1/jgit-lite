@@ -385,18 +385,18 @@ public class DeltaUtils {
 //                "\n").getBytes(StandardCharsets.UTF_8);
 //
 //        List<Delta> deltas = makeDeltas(target, base);
-//        System.out.println(pretty(deltas, base));
+//        log.debug(pretty(deltas, base));
 //        byte[] deltasFormatted = format(deltas);
-//        System.out.println(Arrays.toString(deltasFormatted));
+//        log.debug(Arrays.toString(deltasFormatted));
 //        List<Delta> parsedDeltas = parse(deltasFormatted);
 //        byte[] targetApplied = applyDeltas(deltas, base);
 //
-//        System.out.println(pretty(parsedDeltas, base).equals(pretty(deltas, base)));
-//        System.out.println(Arrays.equals(targetApplied, target));
+//        log.debug(pretty(parsedDeltas, base).equals(pretty(deltas, base)));
+//        log.debug(Arrays.equals(targetApplied, target));
 //
-//        System.out.println(base.length);
-//        System.out.println(target.length);
-//        System.out.println(deltasFormatted.length);
+//        log.debug(base.length);
+//        log.debug(target.length);
+//        log.debug(deltasFormatted.length);
 //
 //
 //        byte[] base1 = "ssscccd".getBytes();
@@ -405,11 +405,11 @@ public class DeltaUtils {
 //                "cvdfgdsg").getBytes();
 //
 //        List<Delta> deltas1 = makeDeltas(target1, base1);
-//        System.out.println(pretty(deltas1, base));
+//        log.debug(pretty(deltas1, base));
 //
-//        System.out.println(base1.length);
-//        System.out.println(target1.length);
-//        System.out.println(format(deltas1).length);
+//        log.debug(base1.length);
+//        log.debug(target1.length);
+//        log.debug(format(deltas1).length);
 //
 //    }
 }

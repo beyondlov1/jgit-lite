@@ -531,10 +531,14 @@ public class GitLite {
         String remoteCommitObjectId = findRemoteCommitObjectId(remoteName);
 
         // region debug
-        CommitChainItem localCommitChainRoot = getCommitChainHead(localCommitObjectId, EMPTY_OBJECT_ID, objectManager);
-        CommitChainItem remoteCommitChainRoot = getCommitChainHead(remoteCommitObjectId, EMPTY_OBJECT_ID, objectManager);
-        localCommitChainRoot.print();
-        remoteCommitChainRoot.print();
+        if (StringUtils.isNotBlank(localCommitObjectId)){
+            CommitChainItem localCommitChainRoot = getCommitChainHead(localCommitObjectId, EMPTY_OBJECT_ID, objectManager);
+            localCommitChainRoot.print();
+        }
+        if (StringUtils.isNotBlank(remoteCommitObjectId)) {
+            CommitChainItem remoteCommitChainRoot = getCommitChainHead(remoteCommitObjectId, EMPTY_OBJECT_ID, objectManager);
+            remoteCommitChainRoot.print();
+        }
         // endregion
 
         if (StringUtils.equals(localCommitObjectId, remoteCommitObjectId)) {
@@ -970,10 +974,10 @@ public class GitLite {
                         objectId2BlockMap.putIfAbsent(entry.getObjectId(), baseBlock);
 
                         // region debug
-                        System.out.println(entry.getType() + ":" + entry.getObjectId());
+                        log.debug(entry.getType() + ":" + entry.getObjectId());
                         if (entry.getType() == ObjectEntity.Type.commit) {
                             CommitObjectData commitObjectData = CommitObjectData.parseFrom(targetObjectEntity.getData());
-                            System.out.println("commitData:" + commitObjectData);
+                            log.debug("commitData:" + commitObjectData);
                         }
                         // endregion
                     } else {
@@ -990,10 +994,10 @@ public class GitLite {
                         objectId2BlockMap.putIfAbsent(entry.getObjectId(), deltaBlock);
 
                         // region debug
-                        System.out.println(entry.getType() + ":" + entry.getObjectId());
+                        log.debug(entry.getType() + ":" + entry.getObjectId());
                         if (entry.getType() == ObjectEntity.Type.commit) {
                             CommitObjectData commitObjectData = CommitObjectData.parseFrom(targetObjectEntity.getData());
-                            System.out.println("commitData:" + commitObjectData);
+                            log.debug("commitData:" + commitObjectData);
                         }
                         // endregion
                     }
@@ -1008,7 +1012,7 @@ public class GitLite {
 
         // region debug
         for (Block block : blocks) {
-            System.out.println(block.getClass().getSimpleName() + ":" + block.getObjectId());
+            log.debug(block.getClass().getSimpleName() + ":" + block.getObjectId());
         }
         // endregion
 
@@ -1018,7 +1022,7 @@ public class GitLite {
 
         List<PackFile> subPackFiles = finalPackFile.split(limit);
         int size = PackFileFormatter.size(finalPackFile);
-        System.out.println("size:" + size);
+        log.debug("size:" + size);
 
         PackInfo packInfo = new PackInfo();
         List<PackReader.PackPair> packPairs = new ArrayList<>();
@@ -1041,9 +1045,9 @@ public class GitLite {
             // region debug
             List<Block> blockList = subPackFile.getBlockList();
             for (Block block : blockList) {
-                System.out.println(block.getClass().getSimpleName() + ":" + block.getObjectId());
+                log.debug(block.getClass().getSimpleName() + ":" + block.getObjectId());
             }
-            System.out.println();
+            log.debug("\n");
             // endregion
 
             packPairs.add(new PackReader.PackPair(packIndexFile, packDataFile));
@@ -1289,6 +1293,10 @@ public class GitLite {
 
         List<CommitChainItem> parents = commits.stream().flatMap(x -> x.getParents().stream()).collect(Collectors.toList());
         sortBlocksByCommitChain(parents, objectId2BlockMap, blocks);
+    }
+
+    public GitLiteConfig getConfig() {
+        return config;
     }
 
     @Data

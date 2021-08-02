@@ -95,6 +95,9 @@ public class PackIndexFormatter {
         if (compare(sha1Bytes, 0, indexBytes, 256 * 4 + end * 24 + 4, 20) == 0){
             return end;
         }
+        if (end - start == 1){
+            return -1;
+        }
         int mid = (end - start) / 2 + start;
         int compare = compare(sha1Bytes, 0, indexBytes, 256 * 4 + mid * 24 + 4, 20);
         if (compare < 0) {

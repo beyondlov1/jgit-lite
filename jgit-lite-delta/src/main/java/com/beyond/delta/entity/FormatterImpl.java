@@ -2,6 +2,7 @@ package com.beyond.delta.entity;
 
 
 import com.beyond.jgit.util.FormatUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
@@ -13,6 +14,7 @@ import java.util.List;
  * @date 2021/07/02
  */
 @SuppressWarnings("DuplicatedCode")
+@Slf4j
 public class FormatterImpl implements Formatter {
 
 

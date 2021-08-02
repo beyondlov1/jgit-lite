@@ -2,6 +2,7 @@ package com.beyond.jgit.util.commitchain;
 
 import com.beyond.jgit.GitLite;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 
 import java.io.IOException;
@@ -12,6 +13,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Data
+@Slf4j
 public class CommitChainItem {
     private String commitObjectId;
     private List<CommitChainItem> parents = new ArrayList<>();
@@ -47,7 +49,7 @@ public class CommitChainItem {
             sb.append(item.getParents().stream().map(CommitChainItem::getCommitObjectId).collect(Collectors.joining("-")));
             sb.append("   ");
         }, () -> sb.append("\n"));
-        System.out.println(sb);
+        log.debug(sb.toString());
     }
 
     public interface Visitor {
