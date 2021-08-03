@@ -42,9 +42,7 @@ public class ObjectManager {
             for (PackInfo.Item item : packInfo.getItems()) {
                 packPairs.add(PackUtils.getPackPair(objectsDir, item.getName()));
             }
-            if (objectDb.existsInPack(objectId, packPairs)) {
-                return PackReader.readObject(objectId, packPairs);
-            }
+            return PackReader.readObject(objectId, packPairs);
         }
 
         throw new RuntimeException("object " + objectId + " not exists");

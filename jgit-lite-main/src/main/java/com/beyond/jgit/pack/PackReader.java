@@ -64,14 +64,22 @@ public class PackReader {
     }
 
     public static List<String> readAllObjectIds(Collection<PackPair> packPairs){
-        List<PackIndex.Item> items = packPairs.stream().flatMap(x -> {
-            try {
-                return PackIndexFormatter.parse(x.getPackIndexBytes()).stream();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }).collect(Collectors.toList());
-        return items.stream().map(PackIndex.Item::getObjectId).collect(Collectors.toList());
+        List<String> allObjectIds = new ArrayList<>();
+        packPairs.forEach(PackReader::readAllObjectIds);
+        return allObjectIds;
+    }
+
+    public static List<String> readAllObjectIds(PackPair packPair){
+        List<String> allObjectIds = new ArrayList<>();
+        try {
+            List<PackIndex.Item> parsedItems = PackIndexFormatter.parse(packPair.getPackIndexBytes());
+            List<String> objectIds = parsedItems.stream().map(PackIndex.Item::getObjectId).collect(Collectors.toList());
+            allObjectIds.addAll(objectIds);
+            PackCache.addAll(packPair, objectIds);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return allObjectIds;
     }
 
     public static class PackPair {

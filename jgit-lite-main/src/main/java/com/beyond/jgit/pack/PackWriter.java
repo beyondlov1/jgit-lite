@@ -12,5 +12,6 @@ public class PackWriter {
         byte[] packIndexBytes = PackIndexFormatter.format(packIndex);
         FileUtils.writeByteArrayToFile(packDataFile, packFileBytes);
         FileUtils.writeByteArrayToFile(packIndexFile, packIndexBytes);
+        PackCache.clear();
     }
 }

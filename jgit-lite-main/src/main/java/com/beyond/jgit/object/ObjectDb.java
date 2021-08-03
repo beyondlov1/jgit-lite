@@ -1,10 +1,12 @@
 package com.beyond.jgit.object;
 
+import com.beyond.jgit.pack.PackCache;
 import com.beyond.jgit.pack.PackInfo;
 import com.beyond.jgit.pack.PackReader;
 import com.beyond.jgit.util.ObjectUtils;
 import com.beyond.jgit.util.PackUtils;
 import com.beyond.jgit.util.ZlibCompression;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
@@ -47,16 +49,27 @@ public class ObjectDb {
     }
 
 
-    public boolean existsInPack(String objectId) throws IOException {
+    private boolean existsInPack(String objectId) throws IOException {
         PackInfo packInfo = PackUtils.readPackInfo(objectsDir);
         if (packInfo != null) {
-            Set<PackReader.PackPair> packPairs = new HashSet<>();
             for (PackInfo.Item item : packInfo.getItems()) {
-                packPairs.add(PackUtils.getPackPair(objectsDir, item.getName()));
+                PackReader.PackPair packPair = PackUtils.getPackPair(objectsDir, item.getName());
+                if (existsInPack(objectId, packPair)){
+                    return true;
+                }
             }
-            return existsInPack(objectId, packPairs);
         }
         return false;
+    }
+
+    public boolean existsInPack(String objectId, PackReader.PackPair packPair) {
+        Set<String> allObjectIds;
+        if (CollectionUtils.isNotEmpty(PackCache.get(packPair))){
+            allObjectIds = new HashSet<>(PackCache.get(packPair));
+        }else {
+            allObjectIds = new HashSet<>(PackReader.readAllObjectIds(packPair));
+        }
+        return allObjectIds.contains(objectId);
     }
 
     public boolean existsInPack(String objectId, Collection<PackReader.PackPair> packPairs) {
