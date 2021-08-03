@@ -74,12 +74,16 @@ public class GitLiteConfig {
         return this;
     }
 
-    public boolean contains(RemoteConfig remoteConfig) {
-        return remoteConfigs.stream().map(RemoteConfig::getRemoteName).collect(Collectors.toSet()).contains(remoteConfig.getRemoteName());
+    public boolean containsRemote(RemoteConfig remoteConfig) {
+        return containsRemote(remoteConfig.getRemoteName());
+    }
+
+    public boolean containsRemote(String remoteName) {
+        return remoteConfigs.stream().map(RemoteConfig::getRemoteName).collect(Collectors.toSet()).contains(remoteName);
     }
 
     public void upsertRemote(RemoteConfig remoteConfig) {
-        if (!this.contains(remoteConfig)) {
+        if (!this.containsRemote(remoteConfig)) {
             remoteConfigs.add(remoteConfig);
         } else {
             remoteConfigs.replaceAll(x -> {
