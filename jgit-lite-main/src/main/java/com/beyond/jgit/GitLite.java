@@ -283,6 +283,9 @@ public class GitLite {
         }
         if (!remoteStorage.exists(PathUtils.concat("refs", "remotes", remoteName, "master"))) {
             log.warn("remote is empty");
+            log.warn("deleting dirty remote refs ...");
+            FileUtils.deleteQuietly(new File(PathUtils.concat(config.getRefsRemotesDir(), remoteName, "master")));
+            log.warn("deleted dirty remote refs ...");
             return;
         }
 
@@ -353,6 +356,9 @@ public class GitLite {
         }
         if (!remoteStorage.exists(PathUtils.concat("refs", "remotes", remoteName, "master"))) {
             log.warn("remote is empty");
+            log.warn("deleting dirty remote refs ...");
+            FileUtils.deleteQuietly(new File(PathUtils.concat(config.getRefsRemotesDir(), remoteName, "master")));
+            log.warn("deleted dirty remote refs ...");
             return;
         }
 
