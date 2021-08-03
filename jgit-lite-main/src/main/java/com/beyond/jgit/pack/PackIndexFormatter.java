@@ -3,6 +3,7 @@ package com.beyond.jgit.pack;
 import com.beyond.jgit.util.FormatUtils;
 import com.beyond.jgit.util.ObjectUtils;
 import com.beyond.jgit.util.PackUtils;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -10,6 +11,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 public class PackIndexFormatter {
 
     public static byte[] format(PackIndex index) throws IOException {
@@ -75,7 +77,7 @@ public class PackIndexFormatter {
         }
         int start = FormatUtils.readNextInt(indexBytes, startFanoutIndex * 4);
         int targetItemIndex = binarySearch(indexBytes, sha1Bytes, start, end);
-        if (targetItemIndex == -1){
+        if (targetItemIndex == -1) {
             return -1;
         }
         return FormatUtils.readNextInt(indexBytes, 256 * 4 + targetItemIndex * 24);
@@ -89,13 +91,13 @@ public class PackIndexFormatter {
                 return -1;
             }
         }
-        if (compare(sha1Bytes, 0, indexBytes, 256 * 4 + start * 24 + 4, 20) == 0){
+        if (compare(sha1Bytes, 0, indexBytes, 256 * 4 + start * 24 + 4, 20) == 0) {
             return start;
         }
-        if (compare(sha1Bytes, 0, indexBytes, 256 * 4 + end * 24 + 4, 20) == 0){
+        if (compare(sha1Bytes, 0, indexBytes, 256 * 4 + end * 24 + 4, 20) == 0) {
             return end;
         }
-        if (end - start == 1){
+        if (end - start == 1) {
             return -1;
         }
         int mid = (end - start) / 2 + start;
@@ -110,17 +112,24 @@ public class PackIndexFormatter {
     }
 
     public static int compare(byte[] bytes1, int bytes1Offset, byte[] bytes2, int bytes2Offset, int len) {
+        // debug
+        log.debug(getNextObjectIdStr(bytes1, bytes1Offset) + " comparing with " + getNextObjectIdStr(bytes2, bytes2Offset));
         for (int i = 0; i < len; i++) {
-            if (bytes1[bytes1Offset + i] < bytes2[bytes2Offset + i]) {
+            if ((bytes1[bytes1Offset + i] & 0xff) < (bytes2[bytes2Offset + i] & 0xff)) {
                 return -1;
             }
-            if (bytes1[bytes1Offset + i] > bytes2[bytes2Offset + i]) {
+            if ((bytes1[bytes1Offset + i] & 0xff) > (bytes2[bytes2Offset + i] & 0xff)) {
                 return 1;
             }
         }
         return 0;
     }
 
+    private static String getNextObjectIdStr(byte[] bytes, int bytes1Offset) {
+        byte[] b = new byte[20];
+        System.arraycopy(bytes, bytes1Offset, b, 0, 20);
+        return ObjectUtils.bytesToHex(b);
+    }
 
     public static void main(String[] args) {
         byte[] a = new byte[256 * 4 + 24 * 30];
