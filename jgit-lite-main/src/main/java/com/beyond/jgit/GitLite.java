@@ -1129,7 +1129,7 @@ public class GitLite {
      * 除upload部分，其他与push方法相同
      */
     public void packAndPush(String remoteName) throws IOException {
-        repack();
+
         Storage remoteStorage = remoteStorageMap.get(remoteName);
         if (remoteStorage == null) {
             throw new RuntimeException("remoteStorage is not exist");
@@ -1152,6 +1152,7 @@ public class GitLite {
             return;
         }
 
+        repack();
 
         // upload packs
         File packsInfoFile = new File(PathUtils.concat(config.getObjectInfoDir(), "packs"));
