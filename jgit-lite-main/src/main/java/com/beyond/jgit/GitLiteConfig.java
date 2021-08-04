@@ -36,6 +36,8 @@ public class GitLiteConfig {
     private String objectPackDir;
     private String objectInfoDir;
 
+    private String ignorePath;
+
     public static GitLiteConfig simpleConfig(String localDir, String committerName, String committerEmail) {
         GitLiteConfig config = new GitLiteConfig();
         config.setLocalDir(localDir);
@@ -53,6 +55,7 @@ public class GitLiteConfig {
         config.setObjectInfoDir(PathUtils.concat(config.getObjectsDir(), "info"));
         config.setCommitterName(committerName);
         config.setCommitterEmail(committerEmail);
+        config.setIgnorePath(PathUtils.concat(localDir, ".gitignore"));
         return config;
     }
 

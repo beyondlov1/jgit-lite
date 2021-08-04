@@ -1,6 +1,7 @@
 package com.beyond.jgit;
 
 import com.beyond.delta.DeltaUtils;
+import com.beyond.jgit.ignore.IgnoreNode;
 import com.beyond.jgit.index.Index;
 import com.beyond.jgit.index.IndexDiffResult;
 import com.beyond.jgit.index.IndexDiffer;
@@ -120,6 +121,13 @@ public class GitLite {
                 Collection<File> listFiles = FileUtil.listFilesAndDirsWithoutNameOf(PathUtils.concat(config.getLocalDir(), path), ".git");
                 files.addAll(listFiles);
             }
+        }
+
+        // 过滤 gitignore
+        if (StringUtils.isNotBlank(config.getIgnorePath()) && new File(config.getIgnorePath()).exists()){
+            IgnoreNode ignoreNode = IgnoreNode.load(config.getIgnorePath());
+            File localDir = new File(config.getLocalDir());
+            files.removeIf(x -> IgnoreNode.isIgnored(ignoreNode, x, localDir));
         }
 
         Index index = new Index();
