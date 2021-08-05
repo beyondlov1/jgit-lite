@@ -388,7 +388,7 @@ public class GitLite {
             String remoteHeadLockObjectId = FileUtils.readFileToString(remoteHeadLockFile, StandardCharsets.UTF_8);
             Set<String> remotePushedObjectIds = logs.stream().map(LogItem::getCommitObjectId).collect(Collectors.toSet());
             if (Objects.equals(remoteHeadObjectId, remoteHeadLockObjectId) || remotePushedObjectIds.contains(remoteHeadLockObjectId)) {
-                log.warn("Already up to date.");
+                log.info("Already up to date.");
                 Files.move(remoteHeadLockFile.toPath(), remoteHeadFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
                 return;
             }
@@ -500,6 +500,10 @@ public class GitLite {
                 throw new RuntimeException("type error");
         }
 
+    }
+
+    public void checkout() throws IOException {
+        checkout(findLocalCommitObjectId());
     }
 
     public void checkout(String commitObjectId) throws IOException {
