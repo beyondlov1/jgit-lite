@@ -684,6 +684,8 @@ public class GitLite {
 
         indexManager.save(committedHeadIndex);
 
+        // fixme: 在remote文件多时, 本地会没有index中的文件, 导致后边报错. 这里要先checkout?
+
         if (!committedDiff.isChanged()) {
             // 如果本地没有变化，只有远程变化, 则只改HEAD
             File headRefFile = getHeadRefFile();
