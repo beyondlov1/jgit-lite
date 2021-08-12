@@ -990,6 +990,14 @@ public class GitLite {
                         ObjectEntity targetObjectEntity = objectManager.read(entry.getObjectId());
                         BaseBlock baseBlock = new BaseBlock(entry.getObjectId(), entry.getType(), targetObjectEntity.getData());
                         objectId2BlockMap.putIfAbsent(entry.getObjectId(), baseBlock);
+
+                        // region debug
+                        log.debug(entry.getType() + ":" + entry.getObjectId());
+                        if (entry.getType() == ObjectEntity.Type.commit) {
+                            CommitObjectData commitObjectData = CommitObjectData.parseFrom(targetObjectEntity.getData());
+                            log.debug("commitData:" + commitObjectData);
+                        }
+                        // endregion
                     } else {
                         ObjectEntity targetObjectEntity = objectManager.read(entry.getObjectId());
                         if (targetObjectEntity.isEmpty()) {
@@ -1002,6 +1010,14 @@ public class GitLite {
 
                         DeltaBlock deltaBlock = new RefDeltaBlock(entry.getObjectId(), DeltaUtils.makeDeltas(target, base), lastEntry.getObjectId());
                         objectId2BlockMap.putIfAbsent(entry.getObjectId(), deltaBlock);
+
+                        // region debug
+                        log.debug(entry.getType() + ":" + entry.getObjectId());
+                        if (entry.getType() == ObjectEntity.Type.commit) {
+                            CommitObjectData commitObjectData = CommitObjectData.parseFrom(targetObjectEntity.getData());
+                            log.debug("commitData:" + commitObjectData);
+                        }
+                        // endregion
                     }
                     lastEntry = entry;
                     i++;
@@ -1011,6 +1027,12 @@ public class GitLite {
 
         LinkedHashSet<Block> blocks = new LinkedHashSet<>();
         sortBlocksByCommitChain(Collections.singletonList(commitChainHead), objectId2BlockMap, blocks);
+
+        // region debug
+        for (Block block : blocks) {
+            log.debug(block.getClass().getSimpleName() + ":" + block.getObjectId());
+        }
+        // endregion
 
         PackFile finalPackFile = new PackFile();
         finalPackFile.setBlockList(new ArrayList<>(blocks));
@@ -1037,6 +1059,14 @@ public class GitLite {
 
             // write pack info
             packInfo.add(packDataFile.getName());
+
+            // region debug
+            List<Block> blockList = subPackFile.getBlockList();
+            for (Block block : blockList) {
+                log.debug(block.getClass().getSimpleName() + ":" + block.getObjectId());
+            }
+            log.debug("\n");
+            // endregion
 
             packPairs.add(new PackReader.PackPair(packIndexFile, packDataFile));
         }
@@ -1070,11 +1100,37 @@ public class GitLite {
         List<String> objectIds = PackReader.readAllObjectIds(packPairs);
         for (String objectId : objectIds) {
             log.debug("pending deleting loose object:" + objectId);
-            // no delete for now, if want: objectManager.deleteLooseObject(objectId);
+            // no delete for now
+//            objectManager.deleteLooseObject(objectId);
         }
 
         // write pack info
         Files.move(packsTmpFile.toPath(), oldPackInfoFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+
+        // region debug
+        for (PackFile subPackFile : subPackFiles) {
+            log.debug("pack file checksum:" + ObjectUtils.bytesToHex(subPackFile.getTrailer().getChecksum()));
+        }
+        // endregion
+
+        List<ObjectEntity> objectEntities = PackReader.readAllObjects(packPairs);
+        for (ObjectEntity objectEntity : objectEntities) {
+            if (objectEntity.getType() == ObjectEntity.Type.blob) {
+                BlobObjectData blobObjectData = BlobObjectData.parseFrom(objectEntity.getData());
+                log.debug("blob: " + new String(blobObjectData.getData()));
+            }
+
+            if (objectEntity.getType() == ObjectEntity.Type.tree) {
+                TreeObjectData treeObjectData = TreeObjectData.parseFrom(objectEntity.getData());
+                log.debug("tree: " + treeObjectData.getEntries());
+            }
+
+            if (objectEntity.getType() == ObjectEntity.Type.commit) {
+                CommitObjectData commitObjectData = CommitObjectData.parseFrom(objectEntity.getData());
+                log.debug("commit: " + commitObjectData);
+            }
+        }
+
 
         // todo: optimization: index -> fileHistoryChain (rename)
 
