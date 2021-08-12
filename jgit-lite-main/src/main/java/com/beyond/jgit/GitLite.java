@@ -1164,9 +1164,13 @@ public class GitLite {
             return;
         }
 
+        log.info("repack start ... ");
         repack();
+        log.info("repack end ... ");
+
 
         // upload packs
+        log.info("upload packs start ... ");
         File packsInfoFile = new File(PathUtils.concat(config.getObjectInfoDir(), "packs"));
         if (!packsInfoFile.exists()) {
             push(remoteName);
@@ -1197,22 +1201,29 @@ public class GitLite {
             remoteStorage.upload(new File(indexPath), remoteIndexPath);
 
         }
+        log.info("upload packs end ... ");
+
 
         Set<String> newPackFileNames = items.stream().map(PackInfo.Item::getName).collect(Collectors.toSet());
 
         // pack info 移动到packs.old
+        log.info("move remote pack to packs.old start ... ");
         String remotePackInfoPath = PathUtils.concat("objects", "info", "packs");
         String oldRemotePackInfoPath = PathUtils.concat("objects", "info", "packs.old");
         remoteStorage.move(remotePackInfoPath, oldRemotePackInfoPath, true);
+        log.info("move remote pack to packs.old end ... ");
 
         // 写入新pack info
+        log.info("upload pack info start ... ");
         try {
             remoteStorage.upload(packsInfoFile, remotePackInfoPath);
         } catch (Exception e) {
             remoteStorage.move(oldRemotePackInfoPath, remotePackInfoPath, true);
             log.error("upload new pack info error, rollback",e);
         }
+        log.info("upload pack info end ... ");
 
+        log.info("delete old pack start ... ");
         if (remoteStorage.exists(oldRemotePackInfoPath)) {
             // 删除旧 pack files
             String oldPackInfoStr = remoteStorage.readFullToString(oldRemotePackInfoPath);
@@ -1226,14 +1237,20 @@ public class GitLite {
                     remoteStorage.delete(PackUtils.getIndexPath(PathUtils.concat("objects", "pack", item.getName())));
                 }
             }
+            log.info("delete old pack end ... ");
+
 
             // 删除旧 pack info file
+            log.info("delete old pack info start ... ");
             remoteStorage.delete(oldRemotePackInfoPath);
+            log.info("delete old pack info end ... ");
         }
 
 
 
+
         // 3. 写remote日志(异常回退)
+        log.info("write remote log start ... ");
         LogItem localCommitLogItem = localLogManager.getLogs().stream().filter(x -> Objects.equals(x.getCommitObjectId(), localCommitObjectId)).findFirst().orElse(null);
         if (localCommitLogItem == null) {
             throw new RuntimeException("log file error, maybe missing some commit");
@@ -1276,6 +1293,7 @@ public class GitLite {
             remoteLogManager.rollback();
             throw e;
         }
+        log.info("write remote log end ... ");
     }
 
     /**
