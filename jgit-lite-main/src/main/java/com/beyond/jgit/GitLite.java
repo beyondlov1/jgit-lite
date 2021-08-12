@@ -124,7 +124,7 @@ public class GitLite {
         }
 
         // 过滤 gitignore
-        if (StringUtils.isNotBlank(config.getIgnorePath()) && new File(config.getIgnorePath()).exists()){
+        if (StringUtils.isNotBlank(config.getIgnorePath()) && new File(config.getIgnorePath()).exists()) {
             IgnoreNode ignoreNode = IgnoreNode.load(config.getIgnorePath());
             File localDir = new File(config.getLocalDir());
             files.removeIf(x -> IgnoreNode.isIgnored(ignoreNode, x, localDir));
@@ -144,11 +144,11 @@ public class GitLite {
         indexManager.save(index);
     }
 
-    public String commit(String message, String...parents) throws IOException {
-        return commit(IndexManager.parseIndex(config.getIndexPath()), message,parents);
+    public String commit(String message, String... parents) throws IOException {
+        return commit(IndexManager.parseIndex(config.getIndexPath()), message, parents);
     }
 
-    public String commit(Index index, String message, String...parents) throws IOException {
+    public String commit(Index index, String message, String... parents) throws IOException {
 
         Index committedIndex = Index.generateFromCommit(findLocalCommitObjectId(), objectManager);
         IndexDiffResult committedDiff = IndexDiffer.diff(index, committedIndex);
@@ -158,7 +158,7 @@ public class GitLite {
         }
 
         ObjectEntity tree = addTreeFromIndex(index);
-        ObjectEntity commit = addCommitObject(tree, message,parents);
+        ObjectEntity commit = addCommitObject(tree, message, parents);
         File headRefFile = getHeadRefFile();
         FileUtils.writeStringToFile(headRefFile, ObjectUtils.sha1hash(commit), StandardCharsets.UTF_8);
 
@@ -257,14 +257,14 @@ public class GitLite {
         commitObjectData.setCommitter(user);
         commitObjectData.setAuthor(user);
         commitObjectData.setMessage(message);
-        if (ArrayUtils.isEmpty(parents)){
+        if (ArrayUtils.isEmpty(parents)) {
             String localCommitObjectId = findLocalCommitObjectId();
-            if (localCommitObjectId == null){
+            if (localCommitObjectId == null) {
                 commitObjectData.addParent(EMPTY_OBJECT_ID);
-            }else {
+            } else {
                 commitObjectData.addParent(localCommitObjectId);
             }
-        }else {
+        } else {
             for (String parent : parents) {
                 commitObjectData.addParent(parent);
             }
@@ -432,7 +432,7 @@ public class GitLite {
         }
         String packInfoStr = FileUtils.readFileToString(packInfoFileTmp, StandardCharsets.UTF_8);
         PackInfo packInfo = JsonUtils.readValue(packInfoStr, PackInfo.class);
-        if (packInfo!=null){
+        if (packInfo != null) {
             for (PackInfo.Item item : packInfo.getItems()) {
                 String remotePackPath = PathUtils.concat("objects", "pack", item.getName());
                 String localPackPath = PathUtils.concat(config.getObjectPackDir(), item.getName());
@@ -549,13 +549,15 @@ public class GitLite {
         String remoteCommitObjectId = findRemoteCommitObjectId(remoteName);
 
         // region debug
-        if (StringUtils.isNotBlank(localCommitObjectId)){
-            CommitChainItem localCommitChainRoot = getCommitChainHead(localCommitObjectId, EMPTY_OBJECT_ID, objectManager);
-            localCommitChainRoot.print();
-        }
-        if (StringUtils.isNotBlank(remoteCommitObjectId)) {
-            CommitChainItem remoteCommitChainRoot = getCommitChainHead(remoteCommitObjectId, EMPTY_OBJECT_ID, objectManager);
-            remoteCommitChainRoot.print();
+        if (log.isDebugEnabled()) {
+            if (StringUtils.isNotBlank(localCommitObjectId)) {
+                CommitChainItem localCommitChainRoot = getCommitChainHead(localCommitObjectId, EMPTY_OBJECT_ID, objectManager);
+                localCommitChainRoot.print();
+            }
+            if (StringUtils.isNotBlank(remoteCommitObjectId)) {
+                CommitChainItem remoteCommitChainRoot = getCommitChainHead(remoteCommitObjectId, EMPTY_OBJECT_ID, objectManager);
+                remoteCommitChainRoot.print();
+            }
         }
         // endregion
 
@@ -588,7 +590,7 @@ public class GitLite {
                         localCommitObjectIds.add(localParent);
                         newLocalCommitChainItemLazys.add(new CommitChainItemLazy(localParent, objectManager));
                     }
-                    if (intersectionCommitObjectId != null){
+                    if (intersectionCommitObjectId != null) {
                         break;
                     }
                 }
@@ -605,13 +607,13 @@ public class GitLite {
                         remoteCommitObjectIds.add(remoteParent);
                         newRemoteCommitChainItemLazys.add(new CommitChainItemLazy(remoteParent, objectManager));
                     }
-                    if (intersectionCommitObjectId != null){
+                    if (intersectionCommitObjectId != null) {
                         break;
                     }
                 }
                 remoteCommitChainItemLazys = newRemoteCommitChainItemLazys;
 
-                if (intersectionCommitObjectId != null){
+                if (intersectionCommitObjectId != null) {
                     break;
                 }
 
@@ -682,14 +684,14 @@ public class GitLite {
 
         indexManager.save(committedHeadIndex);
 
-        if (!committedDiff.isChanged()){
+        if (!committedDiff.isChanged()) {
             // 如果本地没有变化，只有远程变化, 则只改HEAD
             File headRefFile = getHeadRefFile();
             FileUtils.writeStringToFile(headRefFile, remoteCommitObjectId, StandardCharsets.UTF_8);
-        }else{
+        } else {
             log.info("create merge commit");
             // 如果两个local和remote都有变化则merge
-            commit("merge",localCommitObjectId, remoteCommitObjectId);
+            commit("merge", localCommitObjectId, remoteCommitObjectId);
             log.info("merge committed");
         }
 
@@ -737,6 +739,7 @@ public class GitLite {
 
     /**
      * 改为使用packAndPush
+     *
      * @param remoteName
      * @throws IOException
      */
@@ -931,8 +934,8 @@ public class GitLite {
         if (!remoteStorage.exists(PathUtils.concat("refs", "remotes", remoteName))) {
             remoteStorage.mkdir("");
             remoteStorage.mkdir("objects");
-            remoteStorage.mkdir(PathUtils.concat("objects","pack"));
-            remoteStorage.mkdir(PathUtils.concat("objects","info"));
+            remoteStorage.mkdir(PathUtils.concat("objects", "pack"));
+            remoteStorage.mkdir(PathUtils.concat("objects", "info"));
             remoteStorage.mkdir("refs");
             remoteStorage.mkdir(PathUtils.concat("refs", "remotes"));
             remoteStorage.mkdir(PathUtils.concat("refs", "remotes", remoteName));
@@ -992,10 +995,12 @@ public class GitLite {
                         objectId2BlockMap.putIfAbsent(entry.getObjectId(), baseBlock);
 
                         // region debug
-                        log.debug(entry.getType() + ":" + entry.getObjectId());
-                        if (entry.getType() == ObjectEntity.Type.commit) {
-                            CommitObjectData commitObjectData = CommitObjectData.parseFrom(targetObjectEntity.getData());
-                            log.debug("commitData:" + commitObjectData);
+                        if (log.isDebugEnabled()) {
+                            log.debug(entry.getType() + ":" + entry.getObjectId());
+                            if (entry.getType() == ObjectEntity.Type.commit) {
+                                CommitObjectData commitObjectData = CommitObjectData.parseFrom(targetObjectEntity.getData());
+                                log.debug("commitData:" + commitObjectData);
+                            }
                         }
                         // endregion
                     } else {
@@ -1012,10 +1017,12 @@ public class GitLite {
                         objectId2BlockMap.putIfAbsent(entry.getObjectId(), deltaBlock);
 
                         // region debug
-                        log.debug(entry.getType() + ":" + entry.getObjectId());
-                        if (entry.getType() == ObjectEntity.Type.commit) {
-                            CommitObjectData commitObjectData = CommitObjectData.parseFrom(targetObjectEntity.getData());
-                            log.debug("commitData:" + commitObjectData);
+                        if (log.isDebugEnabled()) {
+                            log.debug(entry.getType() + ":" + entry.getObjectId());
+                            if (entry.getType() == ObjectEntity.Type.commit) {
+                                CommitObjectData commitObjectData = CommitObjectData.parseFrom(targetObjectEntity.getData());
+                                log.debug("commitData:" + commitObjectData);
+                            }
                         }
                         // endregion
                     }
@@ -1029,8 +1036,10 @@ public class GitLite {
         sortBlocksByCommitChain(Collections.singletonList(commitChainHead), objectId2BlockMap, blocks);
 
         // region debug
-        for (Block block : blocks) {
-            log.debug(block.getClass().getSimpleName() + ":" + block.getObjectId());
+        if (log.isDebugEnabled()) {
+            for (Block block : blocks) {
+                log.debug(block.getClass().getSimpleName() + ":" + block.getObjectId());
+            }
         }
         // endregion
 
@@ -1061,11 +1070,13 @@ public class GitLite {
             packInfo.add(packDataFile.getName());
 
             // region debug
-            List<Block> blockList = subPackFile.getBlockList();
-            for (Block block : blockList) {
-                log.debug(block.getClass().getSimpleName() + ":" + block.getObjectId());
+            if (log.isDebugEnabled()) {
+                List<Block> blockList = subPackFile.getBlockList();
+                for (Block block : blockList) {
+                    log.debug(block.getClass().getSimpleName() + ":" + block.getObjectId());
+                }
+                log.debug("\n");
             }
-            log.debug("\n");
             // endregion
 
             packPairs.add(new PackReader.PackPair(packIndexFile, packDataFile));
@@ -1108,28 +1119,30 @@ public class GitLite {
         Files.move(packsTmpFile.toPath(), oldPackInfoFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 
         // region debug
-        for (PackFile subPackFile : subPackFiles) {
-            log.debug("pack file checksum:" + ObjectUtils.bytesToHex(subPackFile.getTrailer().getChecksum()));
+        if (log.isDebugEnabled()) {
+            for (PackFile subPackFile : subPackFiles) {
+                log.debug("pack file checksum:" + ObjectUtils.bytesToHex(subPackFile.getTrailer().getChecksum()));
+            }
+
+            List<ObjectEntity> objectEntities = PackReader.readAllObjects(packPairs);
+            for (ObjectEntity objectEntity : objectEntities) {
+                if (objectEntity.getType() == ObjectEntity.Type.blob) {
+                    BlobObjectData blobObjectData = BlobObjectData.parseFrom(objectEntity.getData());
+                    log.debug("blob: " + new String(blobObjectData.getData()));
+                }
+
+                if (objectEntity.getType() == ObjectEntity.Type.tree) {
+                    TreeObjectData treeObjectData = TreeObjectData.parseFrom(objectEntity.getData());
+                    log.debug("tree: " + treeObjectData.getEntries());
+                }
+
+                if (objectEntity.getType() == ObjectEntity.Type.commit) {
+                    CommitObjectData commitObjectData = CommitObjectData.parseFrom(objectEntity.getData());
+                    log.debug("commit: " + commitObjectData);
+                }
+            }
         }
         // endregion
-
-        List<ObjectEntity> objectEntities = PackReader.readAllObjects(packPairs);
-        for (ObjectEntity objectEntity : objectEntities) {
-            if (objectEntity.getType() == ObjectEntity.Type.blob) {
-                BlobObjectData blobObjectData = BlobObjectData.parseFrom(objectEntity.getData());
-                log.debug("blob: " + new String(blobObjectData.getData()));
-            }
-
-            if (objectEntity.getType() == ObjectEntity.Type.tree) {
-                TreeObjectData treeObjectData = TreeObjectData.parseFrom(objectEntity.getData());
-                log.debug("tree: " + treeObjectData.getEntries());
-            }
-
-            if (objectEntity.getType() == ObjectEntity.Type.commit) {
-                CommitObjectData commitObjectData = CommitObjectData.parseFrom(objectEntity.getData());
-                log.debug("commit: " + commitObjectData);
-            }
-        }
 
 
         // todo: optimization: index -> fileHistoryChain (rename)
@@ -1219,7 +1232,7 @@ public class GitLite {
             remoteStorage.upload(packsInfoFile, remotePackInfoPath);
         } catch (Exception e) {
             remoteStorage.move(oldRemotePackInfoPath, remotePackInfoPath, true);
-            log.error("upload new pack info error, rollback",e);
+            log.error("upload new pack info error, rollback", e);
         }
         log.info("upload pack info end ... ");
 
@@ -1245,8 +1258,6 @@ public class GitLite {
             remoteStorage.delete(oldRemotePackInfoPath);
             log.info("delete old pack info end ... ");
         }
-
-
 
 
         // 3. 写remote日志(异常回退)
