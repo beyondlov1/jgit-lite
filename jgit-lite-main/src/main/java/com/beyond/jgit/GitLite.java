@@ -13,12 +13,24 @@ import com.beyond.jgit.object.ObjectManager;
 import com.beyond.jgit.object.data.BlobObjectData;
 import com.beyond.jgit.object.data.CommitObjectData;
 import com.beyond.jgit.object.data.TreeObjectData;
-import com.beyond.jgit.pack.*;
+import com.beyond.jgit.pack.BaseBlock;
+import com.beyond.jgit.pack.Block;
+import com.beyond.jgit.pack.DeltaBlock;
+import com.beyond.jgit.pack.PackFile;
+import com.beyond.jgit.pack.PackFileFormatter;
+import com.beyond.jgit.pack.PackInfo;
+import com.beyond.jgit.pack.PackReader;
+import com.beyond.jgit.pack.PackWriter;
+import com.beyond.jgit.pack.RefDeltaBlock;
 import com.beyond.jgit.storage.FileStorage;
 import com.beyond.jgit.storage.SardineStorage;
 import com.beyond.jgit.storage.Storage;
 import com.beyond.jgit.storage.TransportMapping;
-import com.beyond.jgit.util.*;
+import com.beyond.jgit.util.FileUtil;
+import com.beyond.jgit.util.JsonUtils;
+import com.beyond.jgit.util.ObjectUtils;
+import com.beyond.jgit.util.PackUtils;
+import com.beyond.jgit.util.PathUtils;
 import com.beyond.jgit.util.commitchain.CommitChainItem;
 import com.beyond.jgit.util.commitchain.CommitChainItemLazy;
 import com.beyond.jgit.util.commitchain.CommitChainItemSingleParent;
@@ -34,8 +46,20 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.beyond.jgit.util.commitchain.CommitChainUtils.*;
 
@@ -533,6 +557,23 @@ public class GitLite {
     }
 
 
+    public void checkout(String commitObjectId, List<String> targetPaths) throws IOException {
+        Index targetIndex = Index.generateFromCommit(commitObjectId, objectManager);
+        for (Index.Entry entry : targetIndex.getEntries()) {
+            String absPath = PathUtils.concat(config.getLocalDir(), entry.getPath());
+            for (String targetPath : targetPaths) {
+                if (PathUtils.equals(entry.getPath(),targetPath)){
+                    ObjectEntity objectEntity = objectManager.read(entry.getObjectId());
+                    if (objectEntity.getType() == ObjectEntity.Type.blob) {
+                        BlobObjectData blobObjectData = BlobObjectData.parseFrom(objectEntity.getData());
+                        FileUtils.writeByteArrayToFile(new File(absPath), blobObjectData.getData());
+                    }
+                }
+            }
+
+        }
+    }
+
     /**
      * 把remote的更改merge到本地commit中
      */
@@ -624,7 +665,7 @@ public class GitLite {
         }
 
         if (intersectionCommitObjectId == null) {
-            log.warn("no intersectionCommitObjectId, remote log is empty, cover.");
+            log.warn("no intersectionCommitObjectId, cover.");
         }
 
         Index intersectionIndex = Index.generateFromCommit(intersectionCommitObjectId, objectManager);
@@ -684,7 +725,15 @@ public class GitLite {
 
         indexManager.save(committedHeadIndex);
 
-        // fixme: 在remote文件多时, 本地会没有index中的文件, 导致后边报错. 这里要先checkout?
+        // checkout 合并后的文件: 先checkout本地, 再checkout远程修改的覆盖
+        checkout(localCommitObjectId);
+        for (Index.Entry entry : remoteDiff.getRemoved()) {
+            FileUtils.deleteQuietly(new File(PathUtils.concat(config.getLocalDir(), entry.getPath())));
+        }
+        List<String> remoteAddedOrUpdatedPaths = Stream.concat(remoteDiff.getAdded().stream(), remoteDiff.getUpdated().stream())
+                .map(Index.Entry::getPath).collect(Collectors.toList());
+        checkout(remoteCommitObjectId, remoteAddedOrUpdatedPaths);
+
 
         if (!committedDiff.isChanged()) {
             // 如果本地没有变化，只有远程变化, 则只改HEAD

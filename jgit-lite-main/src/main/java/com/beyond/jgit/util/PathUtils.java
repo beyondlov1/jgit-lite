@@ -92,6 +92,10 @@ public class PathUtils {
         return s;
     }
 
+    public static boolean equals(String path1, String path2) {
+        return Paths.get(path1).equals(Paths.get(path2));
+    }
+
     public static void main(String[] args) {
         Path path = Paths.get("/api/hello/yes/hello.txt");
         Path fileName = path.getFileName();
@@ -119,6 +123,7 @@ public class PathUtils {
         System.out.println(root1);
 
     }
+
 
 
 }

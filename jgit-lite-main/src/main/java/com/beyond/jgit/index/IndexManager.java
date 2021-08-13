@@ -2,6 +2,7 @@ package com.beyond.jgit.index;
 
 import com.beyond.jgit.util.JsonUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
@@ -64,6 +65,12 @@ public class IndexManager {
     }
 
     public void save(Index index) throws IOException {
+        if (index == null){
+            return;
+        }
+        if (CollectionUtils.isEmpty(index.getEntries())){
+            return;
+        }
         index.getEntries().sort(Comparator.comparing(Index.Entry::getPath));
         if (tryLock()) {
             File lockFile = new File(indexPath + ".lock");
@@ -78,6 +85,10 @@ public class IndexManager {
     }
 
     public static Index parseIndex(String indexPath) throws IOException {
-        return JsonUtils.readValue(FileUtils.readFileToByteArray(new File(indexPath)), Index.class);
+        File indexFile = new File(indexPath);
+        if (!indexFile.exists()){
+            return null;
+        }
+        return JsonUtils.readValue(FileUtils.readFileToByteArray(indexFile), Index.class);
     }
 }
