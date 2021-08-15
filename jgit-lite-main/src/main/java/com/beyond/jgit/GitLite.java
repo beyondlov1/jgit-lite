@@ -670,8 +670,16 @@ public class GitLite {
         remoteChanged.addAll(remoteDiff.getUpdated());
         remoteChanged.addAll(remoteDiff.getRemoved());
 
-        if (!committedDiff.isChanged() && !remoteDiff.isChanged()) {
-            log.debug("nothing changed, no merge");
+        if (!committedDiff.isChanged() && remoteDiff.isChanged()) {
+            // 如果本地没有变化，只有远程变化, 则只改HEAD
+            File headRefFile = getHeadRefFile();
+            FileUtils.writeStringToFile(headRefFile, remoteCommitObjectId, StandardCharsets.UTF_8);
+            return;
+        }
+
+        if (committedDiff.isChanged() && !remoteDiff.isChanged()) {
+            // 如果远程没有变化，只有本地变化, 则提交
+            // do nothing, wait for push
             return;
         }
 
@@ -685,11 +693,13 @@ public class GitLite {
 
         // todo : test
         if (intersectionIndex != null && CollectionUtils.isNotEmpty(intersection)) {
+            log.debug("conflicted paths:{}", JsonUtils.writeValueAsString(intersection));
             // merge conflicted
+            List<String> remotePathsToCheckout = new ArrayList<>();
             Map<String, String> intersectionPath2ObjectIdMap = intersectionIndex.getEntries().stream().collect(Collectors.toMap(Index.Entry::getPath, Index.Entry::getObjectId));
             for (String pathInIndex : intersection) {
                 String localObjectId = committedChangedPath2ObjectIdMap.get(pathInIndex);
-                String remoteObjectId = committedChangedPath2ObjectIdMap.get(pathInIndex);
+                String remoteObjectId = remoteChangedPath2ObjectIdMap.get(pathInIndex);
                 String intersectionObjectId = intersectionPath2ObjectIdMap.get(pathInIndex);
 
                 ObjectEntity localCommit = objectManager.read(localCommitObjectId);
@@ -711,6 +721,7 @@ public class GitLite {
                             committedHeadIndex.getEntries().removeIf(x -> Objects.equals(x.getPath(), pathInIndex));
                         } else {
                             committedHeadIndex.upsert(Collections.singletonList(remoteIndexPath2Entry.get(pathInIndex)));
+                            remotePathsToCheckout.add(pathInIndex);
                         }
                     }
                     continue;
@@ -769,13 +780,16 @@ public class GitLite {
 
                 Object[] objects = diffMatchPatch.patch_apply(resultPatches, intersectionStr);
                 String result = (String) objects[0];
+                log.debug("merged result: {} : {}", pathInIndex,result);
                 addBlobObject(result.getBytes());
                 Index.Entry mergedEntry = new Index.Entry();
                 mergedEntry.setType(ObjectEntity.Type.blob);
                 mergedEntry.setPath(pathInIndex);
                 mergedEntry.setObjectId(ObjectUtils.sha1hash(ObjectEntity.Type.blob, result.getBytes()));
                 committedHeadIndex.upsert(Collections.singletonList(mergedEntry));
+                remotePathsToCheckout.add(pathInIndex);
             }
+            checkout(remoteCommitObjectId, remotePathsToCheckout);
         }
 
         // 去掉解决过冲突的path, 只处理没有冲突的path
@@ -794,7 +808,6 @@ public class GitLite {
         indexManager.save(committedHeadIndex);
 
         // checkout 合并后的文件: 先checkout本地, 再checkout远程修改的覆盖
-        checkout(localCommitObjectId);
         for (Index.Entry entry : remoteDiff.getRemoved()) {
             FileUtils.deleteQuietly(new File(PathUtils.concat(config.getLocalDir(), entry.getPath())));
         }
@@ -803,17 +816,10 @@ public class GitLite {
         checkout(remoteCommitObjectId, remoteAddedOrUpdatedPaths);
 
 
-        if (!committedDiff.isChanged()) {
-            // 如果本地没有变化，只有远程变化, 则只改HEAD
-            File headRefFile = getHeadRefFile();
-            FileUtils.writeStringToFile(headRefFile, remoteCommitObjectId, StandardCharsets.UTF_8);
-        } else {
-            log.info("create merge commit");
-            // 如果两个local和remote都有变化则merge
-            commit("merge", localCommitObjectId, remoteCommitObjectId);
-            log.info("merge committed");
-        }
-
+        log.info("create merge commit");
+        // 如果两个local和remote都有变化则merge
+        commit("merge", localCommitObjectId, remoteCommitObjectId);
+        log.info("merge committed");
     }
 
     private String readBlobToString(String objectId) throws IOException {
@@ -839,7 +845,11 @@ public class GitLite {
 
     public String findRemoteCommitObjectId(String remoteName) throws IOException {
         String headPath = config.getHeadPath();
-        String ref = FileUtils.readFileToString(new File(headPath), StandardCharsets.UTF_8);
+        File headFile = new File(headPath);
+        if (!headFile.exists()){
+            return null;
+        }
+        String ref = FileUtils.readFileToString(headFile, StandardCharsets.UTF_8);
         String relativePath = StringUtils.trim(StringUtils.substringAfter(ref, "ref: "));
         relativePath = relativePath.replace(File.separator + "heads" + File.separator, File.separator + "remotes" + File.separator + remoteName + File.separator);
         File file = new File(config.getGitDir(), relativePath);
@@ -1301,6 +1311,10 @@ public class GitLite {
             return;
         }
 
+        fetch(remoteName);
+        merge(remoteName);
+        checkout();
+
         log.info("repack start ... ");
         repack();
         log.info("repack end ... ");
@@ -1429,6 +1443,18 @@ public class GitLite {
             throw e;
         }
         log.info("write remote log end ... ");
+    }
+
+    private boolean needFetchAndMerge(CommitChainItem commitChainHead, String targetCommitObjectId) {
+        if (StringUtils.equals(commitChainHead.getCommitObjectId(), targetCommitObjectId)){
+            return false;
+        }
+        for (CommitChainItem parent : commitChainHead.getParents()) {
+            if(!needFetchAndMerge(parent, targetCommitObjectId)){
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
