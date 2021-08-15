@@ -20,7 +20,7 @@ public class CommitChainItemLazy extends CommitChainItem{
         this.objectManager = objectManager;
     }
 
-    public CommitChainItemLazy(String commitObjectId,ObjectManager objectManager) {
+    public CommitChainItemLazy(String commitObjectId, ObjectManager objectManager) {
         this.objectManager = objectManager;
         this.setCommitObjectId(commitObjectId);
     }

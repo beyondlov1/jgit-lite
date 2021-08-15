@@ -2,6 +2,7 @@ package com.beyond.jgit.diff;
 
 import com.beyond.jgit.object.ObjectEntity;
 import com.beyond.jgit.object.ObjectManager;
+import com.beyond.jgit.object.ObjectManagerFactory;
 import com.beyond.jgit.object.data.CommitObjectData;
 import com.beyond.jgit.object.data.TreeObjectData;
 import org.apache.commons.lang3.StringUtils;
@@ -17,13 +18,13 @@ public class DefaultCommitDiffer implements CommitDiffer {
     private final ObjectManager rightObjectManager;
 
     public DefaultCommitDiffer(String objectDir) {
-        leftObjectManager = new ObjectManager(objectDir);
-        rightObjectManager = new ObjectManager(objectDir);
+        leftObjectManager = ObjectManagerFactory.get(objectDir);
+        rightObjectManager = ObjectManagerFactory.get(objectDir);
     }
 
     public DefaultCommitDiffer(String leftObjectDir, String rightObjectDir) {
-        leftObjectManager = new ObjectManager(leftObjectDir);
-        rightObjectManager = new ObjectManager(rightObjectDir);
+        leftObjectManager = ObjectManagerFactory.get(leftObjectDir);
+        rightObjectManager = ObjectManagerFactory.get(rightObjectDir);
     }
 
     @Override

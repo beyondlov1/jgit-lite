@@ -20,6 +20,9 @@ import static com.beyond.jgit.GitLite.EMPTY_OBJECT_ID;
 
 @Data
 public class Index {
+
+    private static Map<String, List<Entry>> commitObjectId2EntriesCache = new HashMap<>();
+
     private List<Entry> entries = new ArrayList<>();
 
     public void upsert(Collection<Entry> entries) {
@@ -83,12 +86,17 @@ public class Index {
     }
 
     public static Index generateFromCommit(ObjectEntity commit, ObjectManager objectManager) throws IOException {
-        List<Entry> entries = new ArrayList<>();
-
-        CommitObjectData commitObjectData = CommitObjectData.parseFrom(commit.getData());
-        walk(commitObjectData.getTree(), "", objectManager, entries);
-
-        entries.sort(Comparator.comparing(Entry::getPath));
+        String commitObjectId = ObjectUtils.sha1hash(commit.getType(), commit.getData());
+        List<Entry> entries;
+        if (commitObjectId2EntriesCache.containsKey(commitObjectId)) {
+            entries = commitObjectId2EntriesCache.get(commitObjectId);
+        } else {
+            entries = new ArrayList<>();
+            CommitObjectData commitObjectData = CommitObjectData.parseFrom(commit.getData());
+            walk(commitObjectData.getTree(), "", objectManager, entries);
+            entries.sort(Comparator.comparing(Entry::getPath));
+            commitObjectId2EntriesCache.put(commitObjectId, entries);
+        }
 
         Index index = new Index();
         index.setEntries(entries);
@@ -113,12 +121,16 @@ public class Index {
         }
     }
 
+
     public static List<Entry> generateTreeAndBlobFromCommit(String commitObjectId, ObjectManager objectManager) throws IOException {
         if (commitObjectId == null) {
             return null;
         }
         if (Objects.equals(commitObjectId, EMPTY_OBJECT_ID)) {
             return null;
+        }
+        if (commitObjectId2EntriesCache.containsKey(commitObjectId)) {
+            return commitObjectId2EntriesCache.get(commitObjectId);
         }
         ObjectEntity commit = objectManager.read(commitObjectId);
 
@@ -132,13 +144,14 @@ public class Index {
 
         walkTreeAndBlob(rootTreeEntry, objectManager, entries);
         entries.sort(Comparator.comparing(Entry::getPath));
+        commitObjectId2EntriesCache.put(commitObjectId, entries);
         return entries;
     }
 
     @SuppressWarnings("DuplicatedCode")
     public static void walkTreeAndBlob(Entry treeEntity, ObjectManager objectManager, List<Entry> entries) throws IOException {
 
-        if (treeEntity.getType() != ObjectEntity.Type.tree){
+        if (treeEntity.getType() != ObjectEntity.Type.tree) {
             throw new RuntimeException("类型错误");
         }
         entries.add(treeEntity);

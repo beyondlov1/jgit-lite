@@ -10,6 +10,7 @@ import com.beyond.jgit.log.LogItem;
 import com.beyond.jgit.log.LogManager;
 import com.beyond.jgit.object.ObjectEntity;
 import com.beyond.jgit.object.ObjectManager;
+import com.beyond.jgit.object.ObjectManagerFactory;
 import com.beyond.jgit.object.data.BlobObjectData;
 import com.beyond.jgit.object.data.CommitObjectData;
 import com.beyond.jgit.object.data.TreeObjectData;
@@ -58,7 +59,7 @@ public class GitLite {
 
     public GitLite(GitLiteConfig config) {
         this.config = config;
-        this.objectManager = new ObjectManager(config.getObjectsDir());
+        this.objectManager = ObjectManagerFactory.get(config.getObjectsDir());
         this.indexManager = new IndexManager(config.getIndexPath());
         this.localLogManager = new LogManager(PathUtils.concat(config.getLogsHeadsDir(), "master.json"));
 
@@ -1089,6 +1090,7 @@ public class GitLite {
         Map<String, Block> objectId2BlockMap = new HashMap<>();
         CommitChainItem commitChainHead = getCommitChainHead(localCommitObjectId, EMPTY_OBJECT_ID, objectManager);
         List<List<CommitChainItemSingleParent>> commitPaths = pathsToSingleParentCommitChains(getChainPaths(commitChainHead));
+        log.debug("commitPathsSize:{}, commitPathTotal:{}", commitPaths.size(), commitPaths.stream().mapToLong(Collection::size).sum());
         for (List<CommitChainItemSingleParent> commitPath : commitPaths) {
             List<List<Index.Entry>> commits = new ArrayList<>();
             for (CommitChainItemSingleParent commitChainItemSingleParent : commitPath) {

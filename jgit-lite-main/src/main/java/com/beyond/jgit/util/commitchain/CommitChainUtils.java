@@ -6,11 +6,7 @@ import com.beyond.jgit.object.data.CommitObjectData;
 import org.apache.commons.collections4.CollectionUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 import static com.beyond.jgit.GitLite.EMPTY_OBJECT_ID;
 
