@@ -13,24 +13,12 @@ import com.beyond.jgit.object.ObjectManager;
 import com.beyond.jgit.object.data.BlobObjectData;
 import com.beyond.jgit.object.data.CommitObjectData;
 import com.beyond.jgit.object.data.TreeObjectData;
-import com.beyond.jgit.pack.BaseBlock;
-import com.beyond.jgit.pack.Block;
-import com.beyond.jgit.pack.DeltaBlock;
-import com.beyond.jgit.pack.PackFile;
-import com.beyond.jgit.pack.PackFileFormatter;
-import com.beyond.jgit.pack.PackInfo;
-import com.beyond.jgit.pack.PackReader;
-import com.beyond.jgit.pack.PackWriter;
-import com.beyond.jgit.pack.RefDeltaBlock;
+import com.beyond.jgit.pack.*;
 import com.beyond.jgit.storage.FileStorage;
 import com.beyond.jgit.storage.SardineStorage;
 import com.beyond.jgit.storage.Storage;
 import com.beyond.jgit.storage.TransportMapping;
-import com.beyond.jgit.util.FileUtil;
-import com.beyond.jgit.util.JsonUtils;
-import com.beyond.jgit.util.ObjectUtils;
-import com.beyond.jgit.util.PackUtils;
-import com.beyond.jgit.util.PathUtils;
+import com.beyond.jgit.util.*;
 import com.beyond.jgit.util.commitchain.CommitChainItem;
 import com.beyond.jgit.util.commitchain.CommitChainItemLazy;
 import com.beyond.jgit.util.commitchain.CommitChainItemSingleParent;
@@ -46,18 +34,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -195,14 +172,17 @@ public class GitLite {
     }
 
     private ObjectEntity addBlobObject(File file) throws IOException {
+        return addBlobObject(FileUtils.readFileToByteArray(file));
+    }
+
+    private ObjectEntity addBlobObject(byte[] blobData) throws IOException {
         BlobObjectData blobObjectData = new BlobObjectData();
-        blobObjectData.setData(FileUtils.readFileToByteArray(file));
+        blobObjectData.setData(blobData);
 
         ObjectEntity objectEntity = new ObjectEntity();
         objectEntity.setType(ObjectEntity.Type.blob);
         objectEntity.setData(blobObjectData.toBytes());
-        String objectId = objectManager.write(objectEntity);
-        log.debug(file.getName() + " " + objectId);
+        objectManager.write(objectEntity);
         return objectEntity;
     }
 
@@ -562,7 +542,7 @@ public class GitLite {
         for (Index.Entry entry : targetIndex.getEntries()) {
             String absPath = PathUtils.concat(config.getLocalDir(), entry.getPath());
             for (String targetPath : targetPaths) {
-                if (PathUtils.equals(entry.getPath(),targetPath)){
+                if (PathUtils.equals(entry.getPath(), targetPath)) {
                     ObjectEntity objectEntity = objectManager.read(entry.getObjectId());
                     if (objectEntity.getType() == ObjectEntity.Type.blob) {
                         BlobObjectData blobObjectData = BlobObjectData.parseFrom(objectEntity.getData());
@@ -698,14 +678,110 @@ public class GitLite {
         Map<String, String> committedChangedPath2ObjectIdMap = committedChanged.stream().collect(Collectors.toMap(Index.Entry::getPath, Index.Entry::getObjectId));
         Map<String, String> remoteChangedPath2ObjectIdMap = remoteChanged.stream().collect(Collectors.toMap(Index.Entry::getPath, Index.Entry::getObjectId));
 
+        Map<String, Index.Entry> remoteIndexPath2Entry = remoteHeadIndex == null ? Collections.emptyMap() : remoteHeadIndex.getEntries().stream().collect(Collectors.toMap(Index.Entry::getPath, x -> x));
+
         Collection<String> intersection = CollectionUtils.intersection(committedChangedPath2ObjectIdMap.keySet(), remoteChangedPath2ObjectIdMap.keySet());
         intersection.removeIf(x -> Objects.equals(committedChangedPath2ObjectIdMap.get(x), remoteChangedPath2ObjectIdMap.get(x)));
 
-        if (CollectionUtils.isNotEmpty(intersection)) {
-            // todo: merge conflicted
-            throw new RuntimeException("not supported yet");
+        // todo : test
+        if (intersectionIndex != null && CollectionUtils.isNotEmpty(intersection)) {
+            // merge conflicted
+            Map<String, String> intersectionPath2ObjectIdMap = intersectionIndex.getEntries().stream().collect(Collectors.toMap(Index.Entry::getPath, Index.Entry::getObjectId));
+            for (String pathInIndex : intersection) {
+                String localObjectId = committedChangedPath2ObjectIdMap.get(pathInIndex);
+                String remoteObjectId = committedChangedPath2ObjectIdMap.get(pathInIndex);
+                String intersectionObjectId = intersectionPath2ObjectIdMap.get(pathInIndex);
+
+                ObjectEntity localCommit = objectManager.read(localCommitObjectId);
+                ObjectEntity remoteCommit = objectManager.read(remoteCommitObjectId);
+
+                boolean isLocalNewer = true;
+                if (CommitObjectData.parseFrom(localCommit.getData()).getCommitTime() < CommitObjectData.parseFrom(remoteCommit.getData()).getCommitTime()) {
+                    isLocalNewer = false;
+                }
+
+                // delete 和 update冲突的情况
+                Set<String> localRemovedPath = committedDiff.getRemoved().stream().map(Index.Entry::getPath).collect(Collectors.toSet());
+                Set<String> remoteRemovePath = remoteDiff.getRemoved().stream().map(Index.Entry::getPath).collect(Collectors.toSet());
+                if (localRemovedPath.contains(pathInIndex)) {
+                    if (isLocalNewer) {
+                        committedHeadIndex.getEntries().removeIf(x -> Objects.equals(x.getPath(), pathInIndex));
+                    } else {
+                        if (remoteRemovePath.contains(pathInIndex)) {
+                            committedHeadIndex.getEntries().removeIf(x -> Objects.equals(x.getPath(), pathInIndex));
+                        } else {
+                            committedHeadIndex.upsert(Collections.singletonList(remoteIndexPath2Entry.get(pathInIndex)));
+                        }
+                    }
+                    continue;
+                }
+
+                if (remoteRemovePath.contains(pathInIndex)) {
+                    if (!isLocalNewer) {
+                        committedHeadIndex.getEntries().removeIf(x -> Objects.equals(x.getPath(), pathInIndex));
+                    }
+                    continue;
+                }
+
+                // update 和 update 冲突的情况，patches 中是否有交叉
+                String localStr = readBlobToString(localObjectId);
+                String remoteStr = readBlobToString(remoteObjectId);
+                String intersectionStr = readBlobToString(intersectionObjectId);
+
+                DiffMatchPatch diffMatchPatch = new DiffMatchPatch();
+                LinkedList<DiffMatchPatch.Patch> localPatches = diffMatchPatch.patch_make(intersectionStr, localStr);
+                LinkedList<DiffMatchPatch.Patch> remotePatches = diffMatchPatch.patch_make(intersectionStr, remoteStr);
+
+
+                LinkedList<DiffMatchPatch.Patch> resultPatches = new LinkedList<>();
+                for (DiffMatchPatch.Patch localPatch : localPatches) {
+                    boolean isCross = false;
+                    for (DiffMatchPatch.Patch remotePatch : remotePatches) {
+                        if (GoogleDiffUtils.isCross(localPatch, remotePatch)) {
+                            isCross = true;
+                            break;
+                        }
+                    }
+                    if (!isCross) {
+                        resultPatches.add(localPatch);
+                    } else {
+                        if (isLocalNewer) {
+                            resultPatches.add(localPatch);
+                        }
+                    }
+                }
+                for (DiffMatchPatch.Patch remotePatch : remotePatches) {
+                    boolean isCross = false;
+                    for (DiffMatchPatch.Patch localPatch : localPatches) {
+                        if (GoogleDiffUtils.isCross(localPatch, remotePatch)) {
+                            isCross = true;
+                            break;
+                        }
+                    }
+                    if (!isCross) {
+                        resultPatches.add(remotePatch);
+                    } else {
+                        if (!isLocalNewer) {
+                            resultPatches.add(remotePatch);
+                        }
+                    }
+                }
+
+                Object[] objects = diffMatchPatch.patch_apply(resultPatches, intersectionStr);
+                String result = (String) objects[0];
+                addBlobObject(result.getBytes());
+                Index.Entry mergedEntry = new Index.Entry();
+                mergedEntry.setType(ObjectEntity.Type.blob);
+                mergedEntry.setPath(pathInIndex);
+                mergedEntry.setObjectId(ObjectUtils.sha1hash(ObjectEntity.Type.blob, result.getBytes()));
+                committedHeadIndex.upsert(Collections.singletonList(mergedEntry));
+            }
         }
 
+        // 去掉解决过冲突的path, 只处理没有冲突的path
+        remoteDiff.getAdded().removeIf(x -> intersection.contains(x.getPath()));
+        remoteDiff.getUpdated().removeIf(x -> intersection.contains(x.getPath()));
+        remoteDiff.getRemoved().removeIf(x -> intersection.contains(x.getPath()));
         if (committedHeadIndex == null) {
             committedHeadIndex = new Index();
         }
@@ -713,15 +789,7 @@ public class GitLite {
         committedHeadIndex.upsert(remoteDiff.getUpdated());
         committedHeadIndex.remove(remoteDiff.getRemoved());
 
-        if (remoteHeadIndex == null) {
-            remoteHeadIndex = new Index();
-        }
-        remoteHeadIndex.upsert(committedDiff.getAdded());
-        remoteHeadIndex.upsert(committedDiff.getUpdated());
-        remoteHeadIndex.remove(committedDiff.getRemoved());
-
         log.debug(JsonUtils.writeValueAsString(committedHeadIndex));
-        log.debug(JsonUtils.writeValueAsString(remoteHeadIndex));
 
         indexManager.save(committedHeadIndex);
 
@@ -748,6 +816,11 @@ public class GitLite {
 
     }
 
+    private String readBlobToString(String objectId) throws IOException {
+        ObjectEntity objectEntity = objectManager.read(objectId);
+        BlobObjectData data = BlobObjectData.parseFrom(objectEntity.getData());
+        return new String(data.getData());
+    }
 
     public String findLocalCommitObjectId() throws IOException {
         File file = getHeadRefFile();
