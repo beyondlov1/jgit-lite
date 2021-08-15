@@ -21,7 +21,8 @@ import static com.beyond.jgit.GitLite.EMPTY_OBJECT_ID;
 @Data
 public class Index {
 
-    private static Map<String, List<Entry>> commitObjectId2EntriesCache = new HashMap<>();
+    private static LinkedHashMap<String, List<Entry>> commitObjectId2EntriesCache = new LinkedHashMap<>();
+    private static final int CACHE_SIZE = 1000;
 
     private List<Entry> entries = new ArrayList<>();
 
@@ -95,7 +96,7 @@ public class Index {
             CommitObjectData commitObjectData = CommitObjectData.parseFrom(commit.getData());
             walk(commitObjectData.getTree(), "", objectManager, entries);
             entries.sort(Comparator.comparing(Entry::getPath));
-            commitObjectId2EntriesCache.put(commitObjectId, entries);
+            putCache(commitObjectId, entries);
         }
 
         Index index = new Index();
@@ -144,7 +145,7 @@ public class Index {
 
         walkTreeAndBlob(rootTreeEntry, objectManager, entries);
         entries.sort(Comparator.comparing(Entry::getPath));
-        commitObjectId2EntriesCache.put(commitObjectId, entries);
+        putCache(commitObjectId, entries);
         return entries;
     }
 
@@ -172,5 +173,12 @@ public class Index {
                 walkTreeAndBlob(entry, objectManager, entries);
             }
         }
+    }
+
+    private static void putCache(String commitObjectId, List<Entry> entries){
+        if (commitObjectId2EntriesCache.size() > CACHE_SIZE){
+            commitObjectId2EntriesCache.entrySet().iterator().remove();
+        }
+        commitObjectId2EntriesCache.put(commitObjectId, entries);
     }
 }

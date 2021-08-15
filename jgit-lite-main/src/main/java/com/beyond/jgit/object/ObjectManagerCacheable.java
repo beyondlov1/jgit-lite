@@ -6,6 +6,8 @@ import java.util.Map;
 
 public class ObjectManagerCacheable implements ObjectManager {
 
+    private static final int CACHE_SIZE = 5000;
+
     private final Map<String, ObjectEntity> objectId2ObjectEntityCache = new HashMap<>();
 
     private final ObjectManager objectManager;
@@ -29,7 +31,7 @@ public class ObjectManagerCacheable implements ObjectManager {
             return objectId2ObjectEntityCache.get(objectId);
         }
         ObjectEntity result = objectManager.read(objectId);
-        objectId2ObjectEntityCache.put(objectId, result);
+        putCache(objectId, result);
         return result;
     }
 
@@ -44,5 +46,12 @@ public class ObjectManagerCacheable implements ObjectManager {
     @Override
     public void deleteLooseObject(String objectId) {
         objectManager.deleteLooseObject(objectId);
+    }
+
+    private void putCache(String commitObjectId, ObjectEntity objectEntity){
+        if (objectId2ObjectEntityCache.size() > CACHE_SIZE){
+            objectId2ObjectEntityCache.entrySet().iterator().remove();
+        }
+        objectId2ObjectEntityCache.put(commitObjectId, objectEntity);
     }
 }
