@@ -1115,16 +1115,19 @@ public class GitLite {
                 Index.Entry entry = new Index.Entry();
                 entry.setObjectId(x.getCommitObjectId());
                 entry.setType(ObjectEntity.Type.commit);
-                entry.setPath("commit");
+                entry.setPath("_commit");
                 return entry;
             }).collect(Collectors.toList());
-            pathHistory.put("commit", commitEntry);
+            pathHistory.put("_commit", commitEntry);
 
             // blob and tree
             for (List<Index.Entry> entries : pathHistory.values()) {
                 Index.Entry lastEntry = null;
                 int i = 0;
                 for (Index.Entry entry : entries) {
+                    if (objectId2BlockMap.get(entry.getObjectId()) != null){
+                        continue;
+                    }
                     if (i == 0) {
                         ObjectEntity targetObjectEntity = objectManager.read(entry.getObjectId());
                         BaseBlock baseBlock = new BaseBlock(entry.getObjectId(), entry.getType(), targetObjectEntity.getData());

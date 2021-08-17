@@ -21,7 +21,8 @@ import static com.beyond.jgit.GitLite.EMPTY_OBJECT_ID;
 @Data
 public class Index {
 
-    private static LinkedHashMap<String, List<Entry>> commitObjectId2EntriesCache = new LinkedHashMap<>();
+    private static LinkedHashMap<String, List<Entry>> commitObjectId2BlobAndTreeEntriesCache = new LinkedHashMap<>();
+    private static LinkedHashMap<String, List<Entry>> commitObjectId2BlobEntriesCache = new LinkedHashMap<>();
     private static final int CACHE_SIZE = 1000;
 
     private List<Entry> entries = new ArrayList<>();
@@ -89,14 +90,16 @@ public class Index {
     public static Index generateFromCommit(ObjectEntity commit, ObjectManager objectManager) throws IOException {
         String commitObjectId = ObjectUtils.sha1hash(commit.getType(), commit.getData());
         List<Entry> entries;
-        if (commitObjectId2EntriesCache.containsKey(commitObjectId)) {
-            entries = commitObjectId2EntriesCache.get(commitObjectId);
+
+        List<Entry> fromCache = getBlobFromCache(commitObjectId);
+        if (fromCache != null){
+            entries = fromCache;
         } else {
             entries = new ArrayList<>();
             CommitObjectData commitObjectData = CommitObjectData.parseFrom(commit.getData());
             walk(commitObjectData.getTree(), "", objectManager, entries);
             entries.sort(Comparator.comparing(Entry::getPath));
-            putCache(commitObjectId, entries);
+            putBlobCache(commitObjectId, entries);
         }
 
         Index index = new Index();
@@ -130,9 +133,12 @@ public class Index {
         if (Objects.equals(commitObjectId, EMPTY_OBJECT_ID)) {
             return null;
         }
-        if (commitObjectId2EntriesCache.containsKey(commitObjectId)) {
-            return commitObjectId2EntriesCache.get(commitObjectId);
+
+        List<Entry> fromCache = getBlobAndTreeFromCache(commitObjectId);
+        if (fromCache != null){
+            return fromCache;
         }
+
         ObjectEntity commit = objectManager.read(commitObjectId);
 
         List<Entry> entries = new ArrayList<>();
@@ -145,7 +151,7 @@ public class Index {
 
         walkTreeAndBlob(rootTreeEntry, objectManager, entries);
         entries.sort(Comparator.comparing(Entry::getPath));
-        putCache(commitObjectId, entries);
+        putBlobAndTreeCache(commitObjectId, entries);
         return entries;
     }
 
@@ -175,10 +181,38 @@ public class Index {
         }
     }
 
-    private static void putCache(String commitObjectId, List<Entry> entries){
-        if (commitObjectId2EntriesCache.size() > CACHE_SIZE){
-            commitObjectId2EntriesCache.entrySet().iterator().remove();
+
+    private static void putBlobCache(String commitObjectId, List<Entry> entries){
+        if (commitObjectId2BlobEntriesCache.size() > CACHE_SIZE){
+            commitObjectId2BlobEntriesCache.entrySet().iterator().remove();
         }
-        commitObjectId2EntriesCache.put(commitObjectId, entries);
+        commitObjectId2BlobEntriesCache.put(commitObjectId, entries);
+    }
+
+    private static List<Entry> getBlobFromCache(String commitObjectId){
+        List<Entry> fromBlobCache = commitObjectId2BlobEntriesCache.get(commitObjectId);
+        if (fromBlobCache == null){
+            return collectBlob(getBlobAndTreeFromCache(commitObjectId));
+        }
+        return fromBlobCache;
+    }
+
+    private static void putBlobAndTreeCache(String commitObjectId, List<Entry> entries){
+        if (commitObjectId2BlobAndTreeEntriesCache.size() > CACHE_SIZE){
+            commitObjectId2BlobAndTreeEntriesCache.entrySet().iterator().remove();
+        }
+        commitObjectId2BlobAndTreeEntriesCache.put(commitObjectId, entries);
+    }
+
+    private static List<Entry> getBlobAndTreeFromCache(String commitObjectId){
+        return commitObjectId2BlobAndTreeEntriesCache.get(commitObjectId);
+    }
+
+    private static List<Entry> collectBlob(List<Entry> blobAndTrees){
+        if (blobAndTrees == null){
+            return null;
+        }else{
+            return blobAndTrees.stream().filter(x -> x.getType() == ObjectEntity.Type.blob).collect(Collectors.toList());
+        }
     }
 }

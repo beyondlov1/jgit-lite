@@ -71,11 +71,11 @@ public class PackIndexFormatter {
         if (end == 0) {
             return -1;
         }
-        int startFanoutIndex = 0;
-        if (fanoutIndex > 0) {
-            startFanoutIndex = fanoutIndex - 1;
+        int start = 0;
+        int startFanoutIndex = fanoutIndex - 1;
+        if (startFanoutIndex >= 0){
+            start = FormatUtils.readNextInt(indexBytes, startFanoutIndex * 4);
         }
-        int start = FormatUtils.readNextInt(indexBytes, startFanoutIndex * 4);
         int targetItemIndex = binarySearch(indexBytes, sha1Bytes, start, end);
         if (targetItemIndex == -1) {
             return -1;

@@ -64,9 +64,7 @@ public class PackReader {
     }
 
     public static List<String> readAllObjectIds(Collection<PackPair> packPairs){
-        List<String> allObjectIds = new ArrayList<>();
-        packPairs.forEach(PackReader::readAllObjectIds);
-        return allObjectIds;
+        return packPairs.stream().flatMap(x -> PackReader.readAllObjectIds(x).stream()).collect(Collectors.toList());
     }
 
     public static List<String> readAllObjectIds(PackPair packPair){
