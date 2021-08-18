@@ -1115,10 +1115,10 @@ public class GitLite {
                 Index.Entry entry = new Index.Entry();
                 entry.setObjectId(x.getCommitObjectId());
                 entry.setType(ObjectEntity.Type.commit);
-                entry.setPath("_commit");
+                entry.setPath("__commit__");
                 return entry;
             }).collect(Collectors.toList());
-            pathHistory.put("_commit", commitEntry);
+            pathHistory.put("__commit__", commitEntry);
 
             // blob and tree
             for (List<Index.Entry> entries : pathHistory.values()) {
