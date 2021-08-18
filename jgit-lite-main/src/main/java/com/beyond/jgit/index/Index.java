@@ -21,8 +21,8 @@ import static com.beyond.jgit.GitLite.EMPTY_OBJECT_ID;
 @Data
 public class Index {
 
-    private static LinkedHashMap<String, List<Entry>> commitObjectId2BlobAndTreeEntriesCache = new LinkedHashMap<>();
-    private static LinkedHashMap<String, List<Entry>> commitObjectId2BlobEntriesCache = new LinkedHashMap<>();
+    private static Map<String, List<Entry>> commitObjectId2BlobAndTreeEntriesCache = Collections.synchronizedMap(new LinkedHashMap<>());
+    private static Map<String, List<Entry>> commitObjectId2BlobEntriesCache = Collections.synchronizedMap(new LinkedHashMap<>());
     private static final int CACHE_SIZE = 1000;
 
     private List<Entry> entries = new ArrayList<>();
@@ -194,7 +194,7 @@ public class Index {
         if (fromBlobCache == null){
             return collectBlob(getBlobAndTreeFromCache(commitObjectId));
         }
-        return fromBlobCache;
+        return new ArrayList<>(fromBlobCache);
     }
 
     private static void putBlobAndTreeCache(String commitObjectId, List<Entry> entries){
@@ -205,7 +205,7 @@ public class Index {
     }
 
     private static List<Entry> getBlobAndTreeFromCache(String commitObjectId){
-        return commitObjectId2BlobAndTreeEntriesCache.get(commitObjectId);
+        return new ArrayList<>(commitObjectId2BlobAndTreeEntriesCache.get(commitObjectId));
     }
 
     private static List<Entry> collectBlob(List<Entry> blobAndTrees){
