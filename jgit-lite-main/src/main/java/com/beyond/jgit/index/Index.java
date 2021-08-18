@@ -205,7 +205,11 @@ public class Index {
     }
 
     private static List<Entry> getBlobAndTreeFromCache(String commitObjectId){
-        return new ArrayList<>(commitObjectId2BlobAndTreeEntriesCache.get(commitObjectId));
+        List<Entry> fromBlobAndTreeCache = commitObjectId2BlobAndTreeEntriesCache.get(commitObjectId);
+        if (fromBlobAndTreeCache == null){
+            return null;
+        }
+        return new ArrayList<>(fromBlobAndTreeCache);
     }
 
     private static List<Entry> collectBlob(List<Entry> blobAndTrees){
