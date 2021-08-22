@@ -143,11 +143,12 @@ public class SardineStorage extends AbstractStorage {
     }
 
     @Override
-    public void move(String source, String target, boolean overwrite) throws IOException {
+    public boolean move(String source, String target, boolean overwrite) throws IOException {
         if (!exists(source)){
-            return;
+            return false;
         }
         sardine.move(getAbsPath(source), getAbsPath(target), overwrite);
+        return true;
     }
 
     @Override

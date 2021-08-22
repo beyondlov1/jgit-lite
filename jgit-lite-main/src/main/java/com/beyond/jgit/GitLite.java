@@ -781,7 +781,7 @@ public class GitLite {
 
                 Object[] objects = diffMatchPatch.patch_apply(resultPatches, intersectionStr);
                 String result = (String) objects[0];
-                log.debug("merged result: {} : {}", pathInIndex,result);
+                log.debug("merged result: {} : {}", pathInIndex, result);
                 addBlobObject(result.getBytes());
                 Index.Entry mergedEntry = new Index.Entry();
                 mergedEntry.setType(ObjectEntity.Type.blob);
@@ -847,7 +847,7 @@ public class GitLite {
     public String findRemoteCommitObjectId(String remoteName) throws IOException {
         String headPath = config.getHeadPath();
         File headFile = new File(headPath);
-        if (!headFile.exists()){
+        if (!headFile.exists()) {
             return null;
         }
         String ref = FileUtils.readFileToString(headFile, StandardCharsets.UTF_8);
@@ -1125,7 +1125,7 @@ public class GitLite {
                 Index.Entry lastEntry = null;
                 int i = 0;
                 for (Index.Entry entry : entries) {
-                    if (objectId2BlockMap.get(entry.getObjectId()) != null){
+                    if (objectId2BlockMap.get(entry.getObjectId()) != null) {
                         continue;
                     }
                     if (i == 0) {
@@ -1317,8 +1317,13 @@ public class GitLite {
         }
 
         fetch(remoteName);
-        merge(remoteName);
-        checkout();
+        String remoteCommitObjectIdAfterFetch = findRemoteCommitObjectId(remoteName);
+        if (!StringUtils.equals(remoteCommitObjectId, remoteCommitObjectIdAfterFetch)) {
+            merge(remoteName);
+            checkout();
+            localCommitObjectId = findLocalCommitObjectId();
+            remoteCommitObjectId = remoteCommitObjectIdAfterFetch;
+        }
 
         log.info("repack start ... ");
         repack();
@@ -1366,7 +1371,11 @@ public class GitLite {
         log.info("move remote pack to packs.old start ... ");
         String remotePackInfoPath = PathUtils.concat("objects", "info", "packs");
         String oldRemotePackInfoPath = PathUtils.concat("objects", "info", "packs.old");
-        remoteStorage.move(remotePackInfoPath, oldRemotePackInfoPath, true);
+        boolean oldPackInfoExists = remoteStorage.exists(oldRemotePackInfoPath);
+        boolean moved = remoteStorage.move(remotePackInfoPath, oldRemotePackInfoPath, true);
+        if (!moved && oldPackInfoExists) {
+            throw new RuntimeException("move remote pack to packs.old error, some other push is running.");
+        }
         log.info("move remote pack to packs.old end ... ");
 
         // 写入新pack info
@@ -1405,7 +1414,8 @@ public class GitLite {
 
         // 3. 写remote日志(异常回退)
         log.info("write remote log start ... ");
-        LogItem localCommitLogItem = localLogManager.getLogs().stream().filter(x -> Objects.equals(x.getCommitObjectId(), localCommitObjectId)).findFirst().orElse(null);
+        String finalLocalCommitObjectId = localCommitObjectId;
+        LogItem localCommitLogItem = localLogManager.getLogs().stream().filter(x -> Objects.equals(x.getCommitObjectId(), finalLocalCommitObjectId)).findFirst().orElse(null);
         if (localCommitLogItem == null) {
             throw new RuntimeException("log file error, maybe missing some commit");
         }
@@ -1435,9 +1445,15 @@ public class GitLite {
             FileUtils.writeStringToFile(remoteHeadLockFile, localCommitObjectId, StandardCharsets.UTF_8);
 
             // 6. 上传remote的head
-            //  upload remote head lock to remote head
+            //  upload local head to remote head
+            remoteStorage.copy(PathUtils.concat("refs", "remotes", remoteName, "master"), PathUtils.concat("refs", "remotes", remoteName, "master.lock"), false);
+            if (!StringUtils.equals(remoteCommitObjectId, remoteStorage.readFullToString(PathUtils.concat("refs", "remotes", remoteName, "master")))) {
+                remoteStorage.delete(PathUtils.concat("refs", "remotes", remoteName, "master.lock"));
+                throw new RuntimeException("remote head changed on pushing, please retry");
+            }
             remoteStorage.upload(new File(PathUtils.concat(config.getRefsHeadsDir(), "master")),
                     PathUtils.concat("refs", "remotes", remoteName, "master"));
+            remoteStorage.delete(PathUtils.concat("refs", "remotes", remoteName, "master.lock"));
 
             Files.move(remoteHeadLockFile.toPath(), remoteHeadFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             remoteLogManager.commit();
@@ -1451,11 +1467,11 @@ public class GitLite {
     }
 
     private boolean needFetchAndMerge(CommitChainItem commitChainHead, String targetCommitObjectId) {
-        if (StringUtils.equals(commitChainHead.getCommitObjectId(), targetCommitObjectId)){
+        if (StringUtils.equals(commitChainHead.getCommitObjectId(), targetCommitObjectId)) {
             return false;
         }
         for (CommitChainItem parent : commitChainHead.getParents()) {
-            if(!needFetchAndMerge(parent, targetCommitObjectId)){
+            if (!needFetchAndMerge(parent, targetCommitObjectId)) {
                 return false;
             }
         }
