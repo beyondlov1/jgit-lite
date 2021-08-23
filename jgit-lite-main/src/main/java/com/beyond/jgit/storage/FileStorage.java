@@ -86,15 +86,16 @@ public class FileStorage extends AbstractStorage {
     }
 
     @Override
-    public void copy(String sourcePath, String targetPath, boolean overwrite) throws IOException {
+    public boolean copy(String sourcePath, String targetPath, boolean overwrite) throws IOException {
         File sourceFile = new File(getAbsPath(sourcePath));
         if (!sourceFile.exists()){
-            return;
+            return false;
         }
         if (overwrite){
             Files.copy(sourceFile.toPath(), new File(getAbsPath(targetPath)).toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         }else{
             Files.copy(sourceFile.toPath(), new File(getAbsPath(targetPath)).toPath(), StandardCopyOption.ATOMIC_MOVE);
         }
+        return true;
     }
 }

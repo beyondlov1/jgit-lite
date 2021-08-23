@@ -152,11 +152,12 @@ public class SardineStorage extends AbstractStorage {
     }
 
     @Override
-    public void copy(String source, String target, boolean overwrite) throws IOException {
+    public boolean copy(String source, String target, boolean overwrite) throws IOException {
         if (!exists(source)){
-            return;
+            return false;
         }
         sardine.copy(getAbsPath(source), getAbsPath(target), overwrite);
+        return true;
     }
 
     private static class ExistDirCacheManager {

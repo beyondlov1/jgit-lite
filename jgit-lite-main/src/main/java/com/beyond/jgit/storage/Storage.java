@@ -18,6 +18,5 @@ public interface Storage {
     String getBasePath();
 
     boolean move(String remotePackInfoPath, String concat, boolean overwrite) throws IOException;
-
-    void copy(String remotePackInfoPath, String concat, boolean overwrite) throws IOException;
+    boolean copy(String remotePackInfoPath, String concat, boolean overwrite) throws IOException;
 }
