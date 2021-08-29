@@ -24,14 +24,14 @@ public class FileStorage extends AbstractStorage {
     }
 
     @Override
-    public void upload(File file, String targetPath) throws IOException {
-        FileUtils.copyFile(file, new File(PathUtils.concat(basePath, targetPath)));
+    public void upload(String path, String targetPath) throws IOException {
+        FileUtils.copyFile(new File(path), new File(PathUtils.concat(basePath, targetPath)));
     }
 
     @Override
     public void uploadBatch(List<TransportMapping> mappings) throws IOException {
         for (TransportMapping mapping : mappings) {
-            upload(new File(mapping.getLocalPath()), mapping.getRemotePath());
+            upload(mapping.getLocalPath(), mapping.getRemotePath());
         }
     }
 
@@ -52,9 +52,10 @@ public class FileStorage extends AbstractStorage {
         FileUtils.forceDelete(new File(PathUtils.concat(basePath,path)));
     }
 
+
     @Override
-    public void download(String path, File targetFile) throws IOException {
-        FileUtils.copyFile(new File(PathUtils.concat(basePath, path)),targetFile);
+    public void download(String path, String targetPath) throws IOException {
+        FileUtils.copyFile(new File(PathUtils.concat(basePath, path)), new File(targetPath));
     }
 
     @Override

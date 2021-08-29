@@ -307,8 +307,8 @@ public class GitLite {
 
         // fetch remote head to remote head lock
         // locked?
-        File remoteHeadFile = new File(PathUtils.concat(config.getRefsRemotesDir(), remoteName, "master"));
-        remoteStorage.download(PathUtils.concat(".git","refs", "remotes", remoteName, "master"), remoteHeadFile);
+        String remoteHeadPath = PathUtils.concat(config.getRefsRemotesDir(), remoteName, "master");
+        remoteStorage.download(PathUtils.concat(".git","refs", "remotes", remoteName, "master"), remoteHeadPath);
 
         // clone packs
         fetchPacks(remoteName);
@@ -380,12 +380,13 @@ public class GitLite {
         // fetch remote head to remote head lock
         // locked?
         File remoteHeadFile = new File(PathUtils.concat(config.getRefsRemotesDir(), remoteName, "master"));
-        File remoteHeadLockFile = new File(PathUtils.concat(config.getRefsRemotesDir(), remoteName, "master.lock"));
+        String remoteHeadLockPath = PathUtils.concat(config.getRefsRemotesDir(), remoteName, "master.lock");
+        File remoteHeadLockFile = new File(remoteHeadLockPath);
         if (remoteHeadLockFile.exists()) {
             log.error("remote master is locked, path:{}", remoteHeadLockFile.getAbsolutePath());
             throw new RuntimeException("remote master is locked");
         }
-        remoteStorage.download(PathUtils.concat(".git","refs", "remotes", remoteName, "master"), remoteHeadLockFile);
+        remoteStorage.download(PathUtils.concat(".git","refs", "remotes", remoteName, "master"), remoteHeadLockPath);
 
         List<LogItem> logs = remoteLogManager.getLogs();
         if (remoteHeadFile.exists() && logs != null) {
@@ -431,18 +432,19 @@ public class GitLite {
     private void fetchPacks(String remoteName) throws IOException {
         Storage remoteStorage = remoteStorageMap.get(remoteName);
         String remotePackInfoPath = PathUtils.concat(".git","objects", "info", "packs");
-        File packInfoFileTmp = new File(config.getObjectInfoDir(), "packs.tmp");
+        String packInfoTmpPath = PathUtils.concat(config.getObjectInfoDir(), "packs.tmp");
         if (remoteStorage.exists(remotePackInfoPath)) {
-            remoteStorage.download(remotePackInfoPath, packInfoFileTmp);
+            remoteStorage.download(remotePackInfoPath, packInfoTmpPath);
         }
+        File packInfoFileTmp = new File(packInfoTmpPath);
         String packInfoStr = FileUtils.readFileToString(packInfoFileTmp, StandardCharsets.UTF_8);
         PackInfo packInfo = JsonUtils.readValue(packInfoStr, PackInfo.class);
         if (packInfo != null) {
             for (PackInfo.Item item : packInfo.getItems()) {
                 String remotePackPath = PathUtils.concat(".git","objects", "pack", item.getName());
                 String localPackPath = PathUtils.concat(config.getObjectPackDir(), item.getName());
-                remoteStorage.download(remotePackPath, new File(localPackPath));
-                remoteStorage.download(PackUtils.getIndexPath(remotePackPath), new File(PackUtils.getIndexPath(localPackPath)));
+                remoteStorage.download(remotePackPath,localPackPath);
+                remoteStorage.download(PackUtils.getIndexPath(remotePackPath), PackUtils.getIndexPath(localPackPath));
             }
         }
 
@@ -466,9 +468,10 @@ public class GitLite {
         }
 
         if (!objectManager.exists(newerCommitObjectId)) {
-            File objectFile = ObjectUtils.getObjectFile(config.getObjectsDir(), newerCommitObjectId);
+            String objectPath = ObjectUtils.getObjectPath(config.getObjectsDir(), newerCommitObjectId);
+            File objectFile = new File(objectPath);
             FileUtils.forceMkdirParent(objectFile);
-            remoteStorage.download(PathUtils.concat(".git","objects", ObjectUtils.path(newerCommitObjectId)), objectFile);
+            remoteStorage.download(PathUtils.concat(".git","objects", ObjectUtils.path(newerCommitObjectId)), objectPath);
         }
         ObjectEntity commitObjectEntity = objectManager.read(newerCommitObjectId);
         List<String> parents = CommitObjectData.parseFrom(commitObjectEntity.getData()).getParents();
@@ -480,9 +483,10 @@ public class GitLite {
 
     private void downloadByObjectIdRecursive(String objectId, Storage remoteStorage) throws IOException {
         if (!objectManager.exists(objectId)) {
-            File objectFile = ObjectUtils.getObjectFile(config.getObjectsDir(), objectId);
+            String objectPath = ObjectUtils.getObjectPath(config.getObjectsDir(), objectId);
+            File objectFile = new File(objectPath);
             FileUtils.forceMkdirParent(objectFile);
-            remoteStorage.download(PathUtils.concat(".git","objects", ObjectUtils.path(objectId)), objectFile);
+            remoteStorage.download(PathUtils.concat(".git","objects", ObjectUtils.path(objectId)), objectPath);
         }
         ObjectEntity objectEntity = objectManager.read(objectId);
         switch (objectEntity.getType()) {
@@ -1018,7 +1022,7 @@ public class GitLite {
 
             // 6. 上传remote的head
             //  upload remote head lock to remote head
-            remoteStorage.upload(new File(PathUtils.concat(config.getRefsHeadsDir(), "master")),
+            remoteStorage.upload(PathUtils.concat(config.getRefsHeadsDir(), "master"),
                     PathUtils.concat(".git","refs", "remotes", remoteName, "master"));
 
             Files.move(remoteHeadLockFile.toPath(), remoteHeadFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
@@ -1332,7 +1336,8 @@ public class GitLite {
 
         // upload packs
         log.info("upload packs start ... ");
-        File packsInfoFile = new File(PathUtils.concat(config.getObjectInfoDir(), "packs"));
+        String packsInfoPath = PathUtils.concat(config.getObjectInfoDir(), "packs");
+        File packsInfoFile = new File(packsInfoPath);
         if (!packsInfoFile.exists()) {
             push(remoteName);
             return;
@@ -1351,7 +1356,7 @@ public class GitLite {
                 continue;
             }
             String packPath = PathUtils.concat(config.getObjectPackDir(), item.getName());
-            remoteStorage.upload(new File(packPath), remotePackPath);
+            remoteStorage.upload(packPath, remotePackPath);
 
             String remoteIndexPath = PackUtils.getIndexPath(remotePackPath);
             if (remoteStorage.exists(remoteIndexPath)) {
@@ -1359,7 +1364,7 @@ public class GitLite {
                 continue;
             }
             String indexPath = PackUtils.getIndexPath(packPath);
-            remoteStorage.upload(new File(indexPath), remoteIndexPath);
+            remoteStorage.upload(indexPath, remoteIndexPath);
 
         }
         log.info("upload packs end ... ");
@@ -1381,7 +1386,7 @@ public class GitLite {
         // 写入新pack info
         log.info("upload pack info start ... ");
         try {
-            remoteStorage.upload(packsInfoFile, remotePackInfoPath);
+            remoteStorage.upload(packsInfoPath, remotePackInfoPath);
         } catch (Exception e) {
             remoteStorage.move(oldRemotePackInfoPath, remotePackInfoPath, true);
             log.error("upload new pack info error, rollback", e);
@@ -1453,12 +1458,12 @@ public class GitLite {
                     remoteStorage.delete(PathUtils.concat(".git","refs", "remotes", remoteName, "master.lock"));
                     throw new RuntimeException("remote head changed on pushing, please retry");
                 }
-                remoteStorage.upload(new File(PathUtils.concat(config.getRefsHeadsDir(), "master")),
+                remoteStorage.upload(PathUtils.concat(config.getRefsHeadsDir(), "master"),
                         PathUtils.concat(".git","refs", "remotes", remoteName, "master"));
                 remoteStorage.delete(PathUtils.concat(".git","refs", "remotes", remoteName, "master.lock"));
             }else{
                 // 首次push, 加锁?
-                remoteStorage.upload(new File(PathUtils.concat(config.getRefsHeadsDir(), "master")),
+                remoteStorage.upload(PathUtils.concat(config.getRefsHeadsDir(), "master"),
                         PathUtils.concat(".git","refs", "remotes", remoteName, "master"));
             }
 

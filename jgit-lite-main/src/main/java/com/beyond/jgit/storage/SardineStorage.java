@@ -52,11 +52,12 @@ public class SardineStorage extends AbstractStorage {
     }
 
     @Override
-    public void upload(File file, String targetPath) throws IOException {
+    public void upload(String path, String targetPath) throws IOException {
         String absPath = getAbsPath(targetPath);
         forceMkdirParent(absPath);
-        sardine.put(absPath, file, null);
+        sardine.put(absPath, new File(path), null);
     }
+
 
     @Override
     public void uploadBatch(List<TransportMapping> mappings) throws IOException {
@@ -67,7 +68,7 @@ public class SardineStorage extends AbstractStorage {
                 log.debug("uploaded, no upload again. if something is wrong, delete session:{}", PathUtils.concat(sessionDir,session.getSessionId()));
                 continue;
             }
-            upload(new File(mapping.getLocalPath()), mapping.getRemotePath());
+            upload(mapping.getLocalPath(), mapping.getRemotePath());
             session.done(mapping);
         }
         session.complete();
@@ -87,11 +88,12 @@ public class SardineStorage extends AbstractStorage {
     }
 
     @Override
-    public void download(String path, File targetFile) throws IOException {
+    public void download(String path, String targetPath) throws IOException {
         String absPath = getAbsPath(path);
         InputStream inputStream = sardine.get(absPath);
-        FileUtils.copyInputStreamToFile(inputStream, targetFile);
+        FileUtils.copyInputStreamToFile(inputStream, new File(targetPath));
     }
+
 
     @Override
     public void mkdir(Collection<String> dirPaths) throws IOException {
