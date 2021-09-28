@@ -1071,6 +1071,7 @@ public class GitLite {
             throw new RuntimeException("remoteStorage is not exist");
         }
         if (!remoteStorage.exists(PathUtils.concat(".git","refs", "remotes", remoteName))) {
+            remoteStorage.mkdir("");
             remoteStorage.mkdir(PathUtils.concat(".git",""));
             remoteStorage.mkdir(PathUtils.concat(".git","objects"));
             remoteStorage.mkdir(PathUtils.concat(".git","objects", "pack"));
