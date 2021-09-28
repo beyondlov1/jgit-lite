@@ -1,6 +1,7 @@
 package com.beyond.jgit.util;
 
 import com.beyond.jgit.object.ObjectEntity;
+import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.codec.digest.DigestUtils;
 
 import java.io.*;
@@ -16,12 +17,12 @@ public class ObjectUtils {
         if (bytes == null || bytes.length == 0) {
             return EMPTY_HASH;
         } else {
-            return DigestUtils.sha1Hex(bytes);
+            return new String(Hex.encodeHex(DigestUtils.sha1(bytes)));
         }
     }
 
     public static String sha1hash(InputStream inputStream) throws IOException {
-        return DigestUtils.sha1Hex(inputStream);
+        return new String(Hex.encodeHex(DigestUtils.sha1(inputStream)));
     }
 
     public static String sha1hash(ObjectEntity.Type type, File file) throws IOException {
