@@ -200,7 +200,9 @@ public class SardineStorage extends AbstractStorage {
         public void delete(String path) throws IOException {
             if (contains(path)) {
                 existDirs.remove(path);
-                FileUtils.writeLines(new File(cachePath), existDirs);
+                if (StringUtils.isNotBlank(cachePath)) {
+                    FileUtils.writeLines(new File(cachePath), existDirs);
+                }
             }
         }
     }
@@ -223,6 +225,9 @@ public class SardineStorage extends AbstractStorage {
 
         @SuppressWarnings("ResultOfMethodCallIgnored")
         public void start(List<TransportMapping> transportMappings) throws IOException {
+            if (sessionDir == null){
+                return;
+            }
             File thisSessionDir = new File(PathUtils.concat(sessionDir, sessionId));
             if (!thisSessionDir.exists()){
                 thisSessionDir.mkdirs();
@@ -236,6 +241,9 @@ public class SardineStorage extends AbstractStorage {
         }
 
         public void done(TransportMapping mapping) throws IOException {
+            if (sessionDir == null){
+                return;
+            }
             File file = new File(PathUtils.concat(sessionDir, sessionId, mapping.toSha1hash()));
             if (file.exists()){
                 FileUtils.forceDelete(file);
@@ -243,6 +251,9 @@ public class SardineStorage extends AbstractStorage {
         }
 
         public boolean isDone(TransportMapping mapping) {
+            if (sessionDir == null){
+                return false;
+            }
             // 根据mapping的sha1hash对应路径的文件是否存在来判断是否已经传输完成
             File thisSessionDir = new File(PathUtils.concat(sessionDir, sessionId));
             if (thisSessionDir.exists()){
@@ -252,6 +263,9 @@ public class SardineStorage extends AbstractStorage {
         }
 
         public void complete() throws IOException {
+            if (sessionDir == null) {
+                return;
+            }
             File thisSessionDir = new File(PathUtils.concat(sessionDir, sessionId));
             if (thisSessionDir.exists()){
                 FileUtils.forceDelete(thisSessionDir);
