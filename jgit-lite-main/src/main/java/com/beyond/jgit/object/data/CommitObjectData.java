@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NonNull;
 import lombok.ToString;
+import org.apache.commons.lang3.ArrayUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -29,11 +30,16 @@ public class CommitObjectData implements ObjectData {
     private TimeZone timeZone = TimeZone.getDefault();
     private byte[] signature;
 
+    public static final CommitObjectData EMPTY = new CommitObjectData();
+
     public void addParent(String parent) {
         parents.add(parent);
     }
 
     public static CommitObjectData parseFrom(byte[] bytes) {
+        if (ArrayUtils.isEmpty(bytes)){
+            return EMPTY;
+        }
         CommitObjectData commitObjectData = new CommitObjectData();
 
         int index = 0;
